@@ -146,7 +146,74 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+const steamPrefix = "steam:"
+
+type steamDeviceView struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Custom bool   `json:"custom"`
+}
+
+// steamDevices lists Steam's Remote Play devices that aren't already paired with the Spout plugin.
+func (s *Server) steamDevices() []steamDeviceView {
+	out := []steamDeviceView{}
+	if s.lib == nil || !s.lib.Status().Ready {
+		return out
+	}
+	devs, err := s.lib.Devices()
+	if err != nil {
+		return out
+	}
+	for _, d := range devs {
+		if s.pairedByName(d.Name) != "" {
+			continue
+		}
+		id := steamPrefix + d.ID
+		_, custom := s.cfg.Device(id)
+		out = append(out, steamDeviceView{ID: id, Name: d.Name, Status: d.Status, Custom: custom})
+	}
+	return out
+}
+
+func (s *Server) pairedByName(name string) string {
+	for _, c := range s.pair.Clients() {
+		if strings.EqualFold(c.Name, name) {
+			return c.ID
+		}
+	}
+	return ""
+}
+
+// ResolveClient maps the client name from Steam's log to the device whose monitor settings apply.
+func (s *Server) ResolveClient(name string) string {
+	if id := s.pairedByName(name); id != "" {
+		return id
+	}
+	for _, d := range s.steamDevices() {
+		if strings.EqualFold(d.Name, name) {
+			return d.ID
+		}
+	}
+	return ""
+}
+
+func (s *Server) listSteamDevices(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.steamDevices())
+}
+
 func (s *Server) knownClient(id string) bool {
+	if strings.HasPrefix(id, steamPrefix) {
+		if _, ok := s.cfg.Device(id); ok {
+			return true
+		}
+		for _, d := range s.steamDevices() {
+			if d.ID == id {
+				return true
+			}
+		}
+		return false
+	}
 	for _, c := range s.pair.Clients() {
 		if c.ID == id {
 			return true

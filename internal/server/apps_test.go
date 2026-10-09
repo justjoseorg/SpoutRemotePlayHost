@@ -30,8 +30,11 @@ func (f *fakeLib) Add(s steamlib.Shortcut) (uint32, error) {
 	f.have[f.next] = s
 	return f.next, nil
 }
-func (f *fakeLib) Remove(id uint32) error                       { delete(f.have, id); return nil }
-func (f *fakeLib) Exists(id uint32) bool                        { _, ok := f.have[id]; return ok }
+func (f *fakeLib) Remove(id uint32) error { delete(f.have, id); return nil }
+func (f *fakeLib) Exists(id uint32) bool  { _, ok := f.have[id]; return ok }
+func (f *fakeLib) Devices() ([]steamlib.Device, error) {
+	return []steamlib.Device{{ID: "42", Name: "Pixel", Status: "Connected"}}, nil
+}
 func (f *fakeLib) SetArtwork(uint32, int, string, []byte) error { return nil }
 func (f *fakeLib) EnableDebugging() error                       { f.debug = true; return nil }
 
@@ -134,5 +137,28 @@ func TestAppsRemoteAccess(t *testing.T) {
 		if rec := doFrom(h, remote, c[0], c[1], `{"name":"a","exe":"/bin/sh"}`, "Bearer tok"); rec.Code != 403 {
 			t.Errorf("%s %s from a remote host: want 403 got %d", c[0], c[1], rec.Code)
 		}
+	}
+}
+
+func TestSteamDeviceConfig(t *testing.T) {
+	srv, _ := appsServer(t)
+	h := srv.Handler()
+
+	rec := do(h, "GET", "/api/steam/devices", "")
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"id":"steam:42"`) {
+		t.Fatalf("devices: %d %s", rec.Code, rec.Body)
+	}
+	body := `{"width":2400,"height":1080,"refreshHz":120,"autoCreate":true}`
+	if rec := do(h, "PUT", "/api/clients/steam:42/config", body); rec.Code != 200 {
+		t.Fatalf("put: %d %s", rec.Code, rec.Body)
+	}
+	if got := srv.ResolveClient("pixel"); got != "steam:42" {
+		t.Fatalf("resolve = %q", got)
+	}
+	if got := srv.cfg.GetFor("steam:42"); got.RefreshHz != 120 {
+		t.Fatalf("config not stored: %+v", got)
+	}
+	if rec := do(h, "PUT", "/api/clients/steam:99/config", body); rec.Code != 404 {
+		t.Fatalf("unknown device: %d", rec.Code)
 	}
 }

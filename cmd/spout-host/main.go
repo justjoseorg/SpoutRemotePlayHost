@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/apps"
@@ -115,12 +114,7 @@ func main() {
 			srv.Sessions().Stop("")
 			return
 		}
-		id := ""
-		for _, c := range pair.Clients() {
-			if strings.EqualFold(c.Name, ev.Client) {
-				id = c.ID
-			}
-		}
+		id := srv.ResolveClient(ev.Client)
 		log.Printf("Remote Play session started (client %q, device %q)", ev.Client, id)
 		if _, err := srv.Sessions().Start(id); err != nil {
 			log.Println("virtual monitor:", err)

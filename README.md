@@ -55,6 +55,10 @@ Windows: download `SpoutRemotePlayHost-Setup-v*.exe` from the latest release. It
 
 Merging a PR into `main` publishes a release automatically. `MAJOR.MINOR` is set by hand in the `VERSION` file; the patch number is auto-incremented per merge (e.g. `0.1.0`, `0.1.1`, ...). Edit `VERSION` in a PR to start a new minor/major. Add the `no-release` label to a PR to skip releasing.
 
+## Android and other Steam Link devices
+
+No Android app is needed: Steam Link already streams. The Devices tab has an **Other Steam devices** section listing the devices Steam knows (read from the running Steam client), where you set a virtual monitor for each (resolution, refresh, auto-create). When a stream starts, the host matches the client name in Steam's log to that device. The device list is verified against the real Steam on Linux; an actual Android stream has not been tried yet. Pair the device in Steam first. The list also shows other PCs Steam can see, so ignore those.
+
 ## Apps
 
 The **Apps** tab of the web UI adds programs to this PC's Steam library (as non-Steam shortcuts), so they can be streamed like any other game. The Decky plugin can list them from the host.

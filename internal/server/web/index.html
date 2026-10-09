@@ -92,6 +92,9 @@
 <section class="panel" id="tab-devices">
   <h2>Paired devices</h2>
   <div id="clients"></div>
+  <h2>Other Steam devices</h2>
+  <p><small>Devices that use Steam Link directly, such as Android phones and tablets, no plugin needed. Pair them in Steam first, then set their monitor here.</small></p>
+  <div id="steamdevs"></div>
 </section>
 <div id="msg"></div>
 </main>
@@ -206,6 +209,32 @@ async function refreshClients() {
     return dev;
   }));
   $("#clients").replaceChildren(...(cards.length ? cards : [el("small", "No paired devices yet.")]));
+  refreshSteamDevices();
+}
+// Devices Steam knows (e.g. Steam Link on Android); they need no plugin, only a monitor config.
+async function refreshSteamDevices() {
+  let list = [];
+  try { list = await api("GET", "/api/steam/devices"); } catch (e) {}
+  const cards = await Promise.all(list.map(async (c) => {
+    const { custom, config } = await api("GET", "/api/clients/" + c.id + "/config");
+    const dev = el("div", "", { className: "dev" });
+    const head = el("div", "", { className: "head", onclick: () => { open.has(c.id) ? open.delete(c.id) : open.add(c.id); refreshSteamDevices(); } });
+    head.append(el("span", c.name, { className: "name" }),
+      el("span", custom ? "Custom monitor" : "Default monitor", { className: "tag" + (custom ? " custom" : "") }),
+      el("span", open.has(c.id) ? "▾" : "▸"));
+    dev.append(head);
+    if (open.has(c.id)) {
+      const body = el("div", "", { className: "body" });
+      body.append(monitorForm(config, c, async (m) => {
+        try { await api("PUT", "/api/clients/" + c.id + "/config", m); msg("Saved " + c.name); } catch (err) { msg(err.message); }
+        refreshSteamDevices();
+      }));
+      if (custom) body.lastChild.append(el("button", "Use defaults", { type: "button", onclick: async () => { await api("DELETE", "/api/clients/" + c.id + "/config"); refreshSteamDevices(); } }));
+      dev.append(body);
+    }
+    return dev;
+  }));
+  $("#steamdevs").replaceChildren(...(cards.length ? cards : [el("small", "No other Steam devices found (Steam must be running with Steam integration enabled).")]));
 }
 function renderDisplays(r) {
   if (!r.supported) {

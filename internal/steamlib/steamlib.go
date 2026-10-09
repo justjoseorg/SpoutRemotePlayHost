@@ -32,12 +32,20 @@ type Status struct {
 	Hint         string `json:"hint,omitempty"`
 }
 
+// Device is a Remote Play client Steam knows about (for example Steam Link on Android).
+type Device struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
 // Library manages shortcuts in the Steam client.
 type Library interface {
 	Status() Status
 	Add(Shortcut) (uint32, error)
 	Remove(id uint32) error
 	Exists(id uint32) bool
+	Devices() ([]Device, error)
 	SetArtwork(id uint32, kind int, ext string, data []byte) error
 	EnableDebugging() error
 }
@@ -225,4 +233,17 @@ func (c *CEF) SetArtwork(id uint32, kind int, ext string, data []byte) error {
 	_, err := c.eval(fmt.Sprintf("SteamClient.Apps.SetCustomArtworkForApp(%d,%s,%s,%d)",
 		id, js(base64.StdEncoding.EncodeToString(data)), js(ext), kind))
 	return err
+}
+
+// Devices lists the Remote Play devices known to Steam.
+func (c *CEF) Devices() ([]Device, error) {
+	raw, err := c.eval(`new Promise(r=>{const h=SteamClient.RemotePlay.RegisterForDevicesChanges(d=>{try{h.unregister()}catch(e){}r(d.map(x=>({id:x.clientId,name:x.clientName,status:x.status})))});setTimeout(()=>r([]),4000)})`)
+	if err != nil {
+		return nil, err
+	}
+	var out []Device
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
