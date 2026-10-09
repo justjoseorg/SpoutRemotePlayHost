@@ -45,9 +45,10 @@ jobs:
         run: |
           mkdir -p dist pkg
           for os in windows linux; do
-            ext=""; [ $os = windows ] && ext=".exe"
+            ext=""; gui=""
+            [ $os = windows ] && ext=".exe" && gui="-H=windowsgui"
             GOOS=$os GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
-              -ldflags "-s -w -X main.version=${VERSION}" -o "dist/spout-host-${os}-amd64${ext}" ./cmd/spout-host
+              -ldflags "-s -w $gui -X main.version=${VERSION}" -o "dist/spout-host-${os}-amd64${ext}" ./cmd/spout-host
           done
           cp dist/spout-host-linux-amd64 pkg/spout-host
           cp installer/linux/install.sh installer/linux/spout-host.service pkg/

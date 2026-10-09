@@ -16,6 +16,7 @@ Nothing here has been run on a Windows machine yet.
 - Codec preference is only a stored hint: Steam Remote Play negotiates the real codec itself, and PyroWave is not available with Steam streaming.
 - Windows backend: talks to the [SudoVDA](https://github.com/SudoMaker/SudoVDA) virtual display driver (same driver ArtLight uses) over its IOCTL protocol, including the watchdog ping. Compiles; untested. SudoVDA must be installed separately.
 - Hotkey: Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) removes the virtual monitor. Windows only (`RegisterHotKey`); compiles, untested. Restoring physical monitors is not implemented yet.
+- Tray icon (Windows and Linux): click it, or choose "Open Spout Remote Play Host", to open the web UI. Run with `-no-tray` to disable. Linux needs a StatusNotifier-capable panel (KDE has one; GNOME needs the AppIndicator extension). Verified to register on KDE only; the Windows tray is untested.
 - Linux: UI runs, but there is no virtual display backend yet.
 - Not started: detecting a Steam Remote Play session (for `autoCreate`).
 

@@ -15,6 +15,7 @@ import (
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/notify"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/server"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/tray"
 )
 
 // version is set at build time via -ldflags.
@@ -24,6 +25,7 @@ func main() {
 	// Loopback by default; non-loopback clients must present the API token.
 	addr := flag.String("listen", "127.0.0.1:47995", "address for the web UI/API (use 0.0.0.0:47995 so the Decky plugin can reach it; non-local requests need the token)")
 	cfgPath := flag.String("config", "", "config file path (default: user config dir)")
+	noTray := flag.Bool("no-tray", false, "do not show the system tray icon")
 	flag.Parse()
 
 	if *cfgPath == "" {
@@ -69,7 +71,16 @@ func main() {
 
 	handler := server.New(store, disp, version, token, pair)
 	fmt.Printf("spout-host %s: UI at http://%s\n", version, *addr)
-	if err := http.ListenAndServe(*addr, handler); err != nil {
+	if *noTray {
+		serve(*addr, handler)
+		return
+	}
+	go serve(*addr, handler)
+	tray.Run(pair.URL, version, func() { os.Exit(0) })
+}
+
+func serve(addr string, h http.Handler) {
+	if err := http.ListenAndServe(addr, h); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
