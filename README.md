@@ -16,6 +16,11 @@ Nothing here has been run on a Windows machine yet.
 - Linux: UI runs, but there is no virtual display backend yet.
 - Not started: detecting a Steam Remote Play session (for `autoCreate`).
 
+## Install
+
+- **Windows:** run `SpigotRemotePlayHost-Setup-vX.Y.Z.exe` from Releases. The optional "SudoVDA virtual display driver" component is built from [SudoMaker/SudoVDA](https://github.com/SudoMaker/SudoVDA) (MIT) in CI and signed with a self-signed certificate; installing it adds that certificate to the Windows Trusted Root and Trusted Publishers stores (removed on uninstall). Untested.
+- **Linux:** extract `spigot-host-vX.Y.Z-linux-amd64.tar.gz` and run `./install.sh` (user systemd service; `--uninstall` removes it). No virtual display driver is installed because there is no Linux backend yet.
+
 ## Build
 
 ```bash

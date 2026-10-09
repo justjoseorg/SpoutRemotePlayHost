@@ -9,15 +9,16 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  version:
     if: github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no-release')
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.merge_commit_sha }}
-
       - name: Compute next version
         id: ver
         run: |
@@ -27,32 +28,87 @@ jobs:
           patch=$(( ${last:+${last##*.} + 1} + 0 ))
           echo "version=${base}.${patch}" >> "$GITHUB_OUTPUT"
 
+  linux:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-
-      - name: Vet
-        run: go vet ./...
-
+      - run: go vet ./... && go test ./...
       - name: Build
         env:
-          VERSION: ${{ steps.ver.outputs.version }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          mkdir dist
-          for target in windows/amd64/.exe linux/amd64/; do
-            IFS=/ read -r os arch ext <<< "$target"
-            name="spigot-host-v${VERSION}-${os}-${arch}"
-            GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -trimpath \
-              -ldflags "-s -w -X main.version=${VERSION}" \
-              -o "dist/${name}${ext}" ./cmd/spigot-host
+          mkdir -p dist pkg
+          for os in windows linux; do
+            ext=""; [ $os = windows ] && ext=".exe"
+            GOOS=$os GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
+              -ldflags "-s -w -X main.version=${VERSION}" -o "dist/spigot-host-${os}-amd64${ext}" ./cmd/spigot-host
           done
+          cp dist/spigot-host-linux-amd64 pkg/spigot-host
+          cp installer/linux/install.sh installer/linux/spigot-host.service pkg/
+          tar -C pkg -czf "dist/spigot-host-v${VERSION}-linux-amd64.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            dist/spigot-host-windows-amd64.exe
+            dist/spigot-host-v*-linux-amd64.tar.gz
 
+  windows-installer:
+    needs: [version, linux]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux
+          path: artifacts
+      - name: Install WDK and Inno Setup
+        shell: pwsh
+        run: |
+          winget install --id Microsoft.WindowsWDK.10.0.26100 --silent --accept-package-agreements --accept-source-agreements
+          choco install innosetup -y --no-progress
+      - name: Build and sign SudoVDA, fetch nefconc
+        shell: pwsh
+        run: |
+          $sdk = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Directory | Where-Object Name -Match '^10\.' | Sort-Object Name -Descending | Select-Object -First 1
+          $env:PATH += ";$($sdk.FullName)\x86"
+          & installer\windows\build-driver.ps1 -OutDir dist\driver
+          & installer\windows\fetch-nefcon.ps1 -OutDir dist\driver
+      - name: Build installer
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          Copy-Item artifacts\spigot-host-windows-amd64.exe dist\spigot-host.exe
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" "/DAppVersion=$env:VERSION" "/DHostExe=..\..\dist\spigot-host.exe" "/DDriverDir=..\..\dist\driver" installer\windows\spigot-host.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/SpigotRemotePlayHost-Setup-v*.exe
+
+  publish:
+    needs: [version, linux, windows-installer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.version }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          gh release create "v${VERSION}" dist/* \
+          mv artifacts/spigot-host-windows-amd64.exe "artifacts/spigot-host-v${VERSION}-windows-amd64.exe"
+          gh release create "v${VERSION}" artifacts/* --repo "${{ github.repository }}" \
             --target "${{ github.event.pull_request.merge_commit_sha }}" \
             --title "v${VERSION}" \
             --notes "${{ github.event.pull_request.title }} (#${{ github.event.pull_request.number }})"
