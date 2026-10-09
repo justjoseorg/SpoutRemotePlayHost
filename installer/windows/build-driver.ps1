@@ -16,8 +16,15 @@ git -C $work checkout $sudovdaCommit
 
 $sln = Join-Path $work 'Virtual Display Driver (HDR)\SudoVDA.sln'
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-$msbuild = & $vswhere -version '[17.0,18.0)' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+$msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
 if (-not $msbuild) { throw 'MSBuild not found' }
+# The WDK ships MSBuild tasks for VS 17 only; the VS 18 runner image needs them under the 18.0 name.
+Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\build' -Directory | ForEach-Object {
+    $bin = Join-Path $_.FullName 'bin'
+    $src = Join-Path $bin 'Microsoft.DriverKit.Build.Tasks.17.0.dll'
+    $dst = Join-Path $bin 'Microsoft.DriverKit.Build.Tasks.18.0.dll'
+    if ((Test-Path $src) -and -not (Test-Path $dst)) { Copy-Item $src $dst }
+}
 & $msbuild $sln /p:Configuration=Release /p:Platform=x64 /m
 if ($LASTEXITCODE) { throw 'msbuild failed' }
 
