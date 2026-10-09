@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
-	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 )
 
@@ -185,8 +184,8 @@ func (s *Server) putClientConfig(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	if s.disp.Active() && s.owner == id && (old.Width != m.Width || old.Height != m.Height || old.RefreshHz != m.RefreshHz) {
-		if err := s.disp.Create(display.Mode{Width: m.Width, Height: m.Height, RefreshHz: m.RefreshHz}); err != nil {
+	if s.sess.OwnedBy(id) && (old.Width != m.Width || old.Height != m.Height || old.RefreshHz != m.RefreshHz) {
+		if err := s.sess.Reapply(id); err != nil {
 			writeErr(w, http.StatusInternalServerError, err)
 			return
 		}

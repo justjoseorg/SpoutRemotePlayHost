@@ -330,3 +330,23 @@ type errDisp struct{}
 func (errDisp) Create(display.Mode) error { return display.ErrNotImplemented }
 func (errDisp) Destroy() error            { return nil }
 func (errDisp) Active() bool              { return false }
+
+func TestSessionStartStop(t *testing.T) {
+	store, err := config.Open(filepath.Join(t.TempDir(), "c.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fd := &fakeDisp{}
+	srv := NewServer(store, fd, "test", "tok", mustPair(t))
+	srv.Sessions().Grace = 0
+	h := srv.Handler()
+	if r := do(h, "POST", "/api/session", `{"state":"start"}`); r.Code != 200 || !fd.active || len(fd.modes) != 1 {
+		t.Fatalf("start: %d active=%v", r.Code, fd.active)
+	}
+	if r := do(h, "POST", "/api/session", `{"state":"stop"}`); r.Code != 200 || fd.active {
+		t.Fatalf("stop: %d active=%v", r.Code, fd.active)
+	}
+	if r := do(h, "POST", "/api/session", `{"state":"nope"}`); r.Code != 400 {
+		t.Fatalf("bad state: %d", r.Code)
+	}
+}

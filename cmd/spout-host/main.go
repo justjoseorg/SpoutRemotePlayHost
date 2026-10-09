@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
@@ -15,6 +17,7 @@ import (
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/notify"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/server"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlog"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/tray"
 )
 
@@ -69,7 +72,24 @@ func main() {
 		}
 	}()
 
-	handler := server.New(store, disp, version, token, pair)
+	srv := server.NewServer(store, disp, version, token, pair)
+	handler := srv.Handler()
+	go steamlog.Watch(steamlog.Candidates(), time.Second, stop, func(ev steamlog.Event) {
+		if !ev.Start {
+			srv.Sessions().Stop("")
+			return
+		}
+		id := ""
+		for _, c := range pair.Clients() {
+			if strings.EqualFold(c.Name, ev.Client) {
+				id = c.ID
+			}
+		}
+		log.Printf("Remote Play session started (client %q, device %q)", ev.Client, id)
+		if _, err := srv.Sessions().Start(id); err != nil {
+			log.Println("virtual monitor:", err)
+		}
+	})
 	fmt.Printf("spout-host %s: UI at http://%s\n", version, *addr)
 	if *noTray {
 		serve(*addr, handler)
