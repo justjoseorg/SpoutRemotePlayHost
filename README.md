@@ -10,7 +10,8 @@ When a Steam Remote Play session starts, create/activate a dedicated virtual mon
 
 Nothing here has been run on a Windows machine yet.
 
-- Web UI and API (`127.0.0.1:47995`, override with `-listen`): edit width/height/refresh/auto-create, create/destroy the monitor. Works and has tests; no authentication, so it binds to loopback by default.
+- Web UI and API (`127.0.0.1:47995`): edit width/height/refresh/auto-create/codec preference, create/destroy the monitor. Works and has tests. To let the Decky plugin connect, start with `-listen 0.0.0.0:47995`; non-loopback requests must send the API token (printed at startup, stored in `token` next to `config.json`). Cross-origin browser writes are rejected.
+- Codec preference is only a stored hint: Steam Remote Play negotiates the real codec itself, and PyroWave is not available with Steam streaming.
 - Windows backend: talks to the [SudoVDA](https://github.com/SudoMaker/SudoVDA) virtual display driver (same driver ArtLight uses) over its IOCTL protocol, including the watchdog ping. Compiles; untested. SudoVDA must be installed separately.
 - Hotkey: Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) removes the virtual monitor. Windows only (`RegisterHotKey`); compiles, untested. Restoring physical monitors is not implemented yet.
 - Linux: UI runs, but there is no virtual display backend yet.

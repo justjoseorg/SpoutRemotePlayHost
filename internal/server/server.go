@@ -1,11 +1,14 @@
 package server
 
 import (
+	"crypto/subtle"
 	"embed"
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"net"
 	"net/http"
+	"strings"
 
 	"github.com/justjoseorg/SpigotRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpigotRemotePlayHost/internal/display"
@@ -20,7 +23,8 @@ type Server struct {
 	version string
 }
 
-func New(cfg *config.Store, disp display.Manager, version string) http.Handler {
+// New returns the HTTP handler. Requests from non-loopback addresses must send "Authorization: Bearer <token>".
+func New(cfg *config.Store, disp display.Manager, version, token string) http.Handler {
 	s := &Server{cfg: cfg, disp: disp, version: version}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.status)
@@ -30,7 +34,7 @@ func New(cfg *config.Store, disp display.Manager, version string) http.Handler {
 	mux.HandleFunc("POST /api/monitor/destroy", s.destroy)
 	sub, _ := fs.Sub(webFS, "web")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
-	return mux
+	return requireToken(mux, token)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -86,4 +90,25 @@ func (s *Server) destroy(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]bool{"monitorActive": false})
+}
+
+func requireToken(next http.Handler, token string) http.Handler {
+	want := []byte("Bearer " + token)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if ip := net.ParseIP(host); err == nil && ip != nil && ip.IsLoopback() {
+			// Loopback is trusted, but block cross-site browser requests to it.
+			if o := r.Header.Get("Origin"); o != "" && r.Method != http.MethodGet && !strings.HasSuffix(o, "//"+r.Host) {
+				writeErr(w, http.StatusForbidden, errors.New("cross-origin request rejected"))
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), want) != 1 {
+			writeErr(w, http.StatusUnauthorized, errors.New("missing or invalid token"))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

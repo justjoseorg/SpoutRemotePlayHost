@@ -15,6 +15,8 @@
   <label>Width <input type="number" name="width"></label>
   <label>Height <input type="number" name="height"></label>
   <label>Refresh (Hz) <input type="number" name="refreshHz"></label>
+  <label>Codec preference (hint only; Steam picks the real codec)
+    <select name="codec"><option value="auto">Auto</option><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="av1">AV1</option></select></label>
   <label><input type="checkbox" name="autoCreate"> Create automatically when a Remote Play session starts</label>
   <button type="submit">Save</button>
 </form>
@@ -33,6 +35,7 @@ async function load() {
   const c = await api("GET", "/api/config");
   for (const k of ["width", "height", "refreshHz"]) $("#f")[k].value = c[k];
   $("#f").autoCreate.checked = c.autoCreate;
+  $("#f").codec.value = c.codec;
   const s = await api("GET", "/api/status");
   $("#state").textContent = s.monitorActive ? "active" : "inactive";
   $("#ver").textContent = "v" + s.version;
@@ -43,7 +46,7 @@ $("#f").onsubmit = async (e) => {
   try {
     await api("PUT", "/api/config", {
       width: +f.width.value, height: +f.height.value,
-      refreshHz: +f.refreshHz.value, autoCreate: f.autoCreate.checked,
+      refreshHz: +f.refreshHz.value, codec: f.codec.value, autoCreate: f.autoCreate.checked,
     });
     msg("Saved");
   } catch (err) { msg(err.message); }

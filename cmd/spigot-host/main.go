@@ -17,8 +17,8 @@ import (
 var version = "dev"
 
 func main() {
-	// Loopback by default; the UI has no authentication.
-	addr := flag.String("listen", "127.0.0.1:47995", "address for the web UI")
+	// Loopback by default; non-loopback clients must present the API token.
+	addr := flag.String("listen", "127.0.0.1:47995", "address for the web UI/API (use 0.0.0.0:47995 so the Decky plugin can reach it; non-local requests need the token)")
 	cfgPath := flag.String("config", "", "config file path (default: user config dir)")
 	flag.Parse()
 
@@ -33,6 +33,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	token, err := config.LoadOrCreateToken(*cfgPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("API token for the Decky plugin / remote access:", token)
 
 	disp := display.New()
 
@@ -50,7 +56,7 @@ func main() {
 		}
 	}()
 
-	handler := server.New(store, disp, version)
+	handler := server.New(store, disp, version, token)
 	fmt.Printf("spigot-host %s: UI at http://%s\n", version, *addr)
 	if err := http.ListenAndServe(*addr, handler); err != nil {
 		fmt.Fprintln(os.Stderr, err)

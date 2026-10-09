@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,14 +18,18 @@ type Monitor struct {
 	RefreshHz int `json:"refreshHz"`
 	// AutoCreate creates the monitor when a Remote Play session starts.
 	AutoCreate bool `json:"autoCreate"`
+	// Codec is a preference hint (auto, h264, hevc, av1); Steam Remote Play negotiates the real codec itself.
+	Codec string `json:"codec"`
 }
 
 func Default() Monitor {
-	return Monitor{Width: 1280, Height: 800, RefreshHz: 60, AutoCreate: true}
+	return Monitor{Width: 1280, Height: 800, RefreshHz: 60, AutoCreate: true, Codec: "auto"}
 }
 
 func (m Monitor) Validate() error {
 	switch {
+	case m.Codec != "auto" && m.Codec != "h264" && m.Codec != "hevc" && m.Codec != "av1":
+		return fmt.Errorf("codec must be auto, h264, hevc or av1, got %q", m.Codec)
 	case m.Width < 640 || m.Width > 7680:
 		return fmt.Errorf("width must be 640-7680, got %d", m.Width)
 	case m.Height < 480 || m.Height > 4320:
@@ -96,4 +102,21 @@ func DefaultPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, "SpigotRemotePlayHost", "config.json"), nil
+}
+
+// LoadOrCreateToken returns the API token stored next to the config, creating it on first use.
+func LoadOrCreateToken(configPath string) (string, error) {
+	path := filepath.Join(filepath.Dir(configPath), "token")
+	if data, err := os.ReadFile(path); err == nil && len(data) >= 32 {
+		return string(data), nil
+	}
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	tok := hex.EncodeToString(buf)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	return tok, os.WriteFile(path, []byte(tok), 0o600)
 }
