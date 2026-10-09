@@ -53,6 +53,7 @@ This is an integrated solution with a narrow purpose: **the virtual monitor, int
 
 Pair each device once, give it its own monitor settings, and from then on it just works. Together with the [Decky plugin](https://github.com/justjoseorg/SpoutRemotePlay) (Wake-on-LAN, pairing, settings), the flow is: **wake the PC → press play in Steam → stream.**
 
+> **Why "Spout"?** It's a play on **Valve**: a valve controls the flow of steam, and a spout is where the steam comes out. Valve's Steam does the streaming; Spout just gives the stream somewhere to pour, a virtual monitor shaped for your handheld.
 ## 📥 Download and install
 
 Get the files from the **[latest release](https://github.com/justjoseorg/SpoutRemotePlayHost/releases/latest)**:
