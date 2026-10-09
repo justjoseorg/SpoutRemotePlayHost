@@ -1,0 +1,27 @@
+name: Changelog
+
+# A PR that bumps VERSION releases a new minor version when merged, so it must add that
+# version's section to CHANGELOG.md (the release would fail after merge otherwise).
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a changelog entry for a new minor version
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          new=$(tr -d '[:space:]' < VERSION)
+          old=$(git show "$BASE_SHA:VERSION" | tr -d '[:space:]')
+          if [ "$new" = "$old" ]; then
+            echo "VERSION unchanged ($new); patch release, no changelog entry needed."
+            exit 0
+          fi
+          bash .github/scripts/release-notes.sh "${new}.0" > /dev/null
+          echo "CHANGELOG.md has a section for $new."
