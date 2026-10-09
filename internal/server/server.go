@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/apps"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/artwork"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
@@ -29,6 +30,7 @@ type Server struct {
 	pair    *pairing.Manager
 	sess    *session.Controller
 	apps    *apps.Store
+	art     *artwork.Client
 	lib     steamlib.Library
 	handler http.Handler
 }
@@ -71,6 +73,8 @@ func NewServer(cfg *config.Store, disp display.Manager, version, token string, p
 	mux.HandleFunc("DELETE /api/apps/{id}", localOnly(s.deleteApp))
 	mux.HandleFunc("POST /api/apps/{id}/steam", localOnly(s.steamAdd))
 	mux.HandleFunc("DELETE /api/apps/{id}/steam", localOnly(s.steamRemove))
+	mux.HandleFunc("POST /api/apps/{id}/artwork", localOnly(s.steamArtwork))
+	mux.HandleFunc("PUT /api/steam/artwork-key", localOnly(s.setArtworkKey))
 	mux.HandleFunc("POST /api/steam/enable-debugging", localOnly(s.enableSteam))
 	sub, _ := fs.Sub(webFS, "web")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
