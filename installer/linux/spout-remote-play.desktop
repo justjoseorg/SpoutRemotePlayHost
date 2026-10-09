@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Spout Remote Play Host
+Comment=Virtual monitor for Steam Remote Play
+Exec=xdg-open http://127.0.0.1:47995
+Icon=spout-remote-play
+Categories=Utility;
+Terminal=false
