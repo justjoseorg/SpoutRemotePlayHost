@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 )
 
@@ -64,15 +66,16 @@ func hostInfo(r *http.Request) map[string]string {
 
 func (s *Server) pairRequest(w http.ResponseWriter, r *http.Request) {
 	var b struct {
-		Name       string `json:"name"`
-		Salt       string `json:"salt"`
-		PINHash    string `json:"pinHash"`
-		SecretHash string `json:"secretHash"`
+		Name       string               `json:"name"`
+		Salt       string               `json:"salt"`
+		PINHash    string               `json:"pinHash"`
+		SecretHash string               `json:"secretHash"`
+		Caps       pairing.Capabilities `json:"caps"`
 	}
 	if !decodeBody(w, r, &b) {
 		return
 	}
-	id, err := s.pair.Request(b.Name, b.Salt, b.PINHash, b.SecretHash)
+	id, err := s.pair.Request(b.Name, b.Salt, b.PINHash, b.SecretHash, b.Caps)
 	switch {
 	case errors.Is(err, pairing.ErrBusy):
 		writeErr(w, http.StatusTooManyRequests, err)
@@ -142,6 +145,62 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = s.cfg.Forget(r.PathValue("id"))
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) knownClient(id string) bool {
+	for _, c := range s.pair.Clients() {
+		if c.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// clientConfig reports a device's monitor config and whether it is custom or inherited from the defaults.
+func (s *Server) clientConfig(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !s.knownClient(id) {
+		writeErr(w, http.StatusNotFound, pairing.ErrUnknownPeer)
+		return
+	}
+	_, custom := s.cfg.Device(id)
+	writeJSON(w, http.StatusOK, map[string]any{"custom": custom, "config": s.cfg.GetFor(id)})
+}
+
+func (s *Server) putClientConfig(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !s.knownClient(id) {
+		writeErr(w, http.StatusNotFound, pairing.ErrUnknownPeer)
+		return
+	}
+	var m config.Monitor
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&m); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	old := s.cfg.GetFor(id)
+	if err := s.cfg.SetFor(id, m); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if s.disp.Active() && s.owner == id && (old.Width != m.Width || old.Height != m.Height || old.RefreshHz != m.RefreshHz) {
+		if err := s.disp.Create(display.Mode{Width: m.Width, Height: m.Height, RefreshHz: m.RefreshHz}); err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"custom": true, "config": m})
+}
+
+func (s *Server) resetClientConfig(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.cfg.Forget(id); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"custom": false, "config": s.cfg.GetFor(id)})
 }
 
 // discover lets clients find this host on the LAN. It reveals only the app name, hostname and version.

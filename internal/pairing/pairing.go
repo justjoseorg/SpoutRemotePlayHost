@@ -35,12 +35,32 @@ var (
 	ErrUnknownPeer = errors.New("unknown client")
 )
 
+// Capabilities is what a client reports about itself when pairing; all fields are optional hints.
+type Capabilities struct {
+	HEVC      bool `json:"hevc"`
+	AV1       bool `json:"av1"`
+	Width     int  `json:"width,omitempty"`
+	Height    int  `json:"height,omitempty"`
+	RefreshHz int  `json:"refreshHz,omitempty"`
+}
+
+func (c Capabilities) sane() Capabilities {
+	if c.Width < 0 || c.Width > 16384 || c.Height < 0 || c.Height > 16384 {
+		c.Width, c.Height = 0, 0
+	}
+	if c.RefreshHz < 0 || c.RefreshHz > 1000 {
+		c.RefreshHz = 0
+	}
+	return c
+}
+
 // Client is a paired device. Only a hash of its token is stored.
 type Client struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	TokenHash string    `json:"tokenHash,omitempty"`
-	Added     time.Time `json:"added"`
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	TokenHash string       `json:"tokenHash,omitempty"`
+	Added     time.Time    `json:"added"`
+	Caps      Capabilities `json:"caps"`
 }
 
 // PendingInfo is what the host UI may show about a waiting request. The PIN hash is never exposed.
@@ -53,6 +73,7 @@ type PendingInfo struct {
 type request struct {
 	id         string
 	name       string
+	caps       Capabilities
 	salt       string
 	pinHash    []byte
 	secretHash []byte
@@ -137,7 +158,7 @@ func (m *Manager) purge() {
 }
 
 // Request registers a pairing attempt and notifies the host user.
-func (m *Manager) Request(name, salt, pinHashHex, secretHashHex string) (string, error) {
+func (m *Manager) Request(name, salt, pinHashHex, secretHashHex string, caps Capabilities) (string, error) {
 	pinHash, err1 := hex.DecodeString(pinHashHex)
 	secretHash, err2 := hex.DecodeString(secretHashHex)
 	if err1 != nil || err2 != nil || len(pinHash) != 32 || len(secretHash) != 32 || len(salt) < 8 || len(salt) > 64 {
@@ -150,7 +171,7 @@ func (m *Manager) Request(name, salt, pinHashHex, secretHashHex string) (string,
 		return "", ErrBusy
 	}
 	r := &request{
-		id: randHex(8), name: cleanName(name), salt: salt,
+		id: randHex(8), name: cleanName(name), caps: caps.sane(), salt: salt,
 		pinHash: pinHash, secretHash: secretHash, expires: m.now().Add(requestTTL),
 	}
 	m.pending[r.id] = r
@@ -194,7 +215,7 @@ func (m *Manager) Confirm(id, pin string) error {
 	}
 	token := randHex(24)
 	m.clients = append(m.clients, Client{
-		ID: randHex(4), Name: r.name, TokenHash: hex.EncodeToString(hashHex(token)), Added: m.now().UTC(),
+		ID: randHex(4), Name: r.name, Caps: r.caps, TokenHash: hex.EncodeToString(hashHex(token)), Added: m.now().UTC(),
 	})
 	if err := m.saveLocked(); err != nil {
 		m.clients = m.clients[:len(m.clients)-1]

@@ -23,7 +23,7 @@ type Monitor struct {
 }
 
 func Default() Monitor {
-	return Monitor{Width: 1280, Height: 800, RefreshHz: 60, AutoCreate: true, Codec: "auto"}
+	return Monitor{Width: 1920, Height: 1080, RefreshHz: 60, AutoCreate: true, Codec: "auto"}
 }
 
 func (m Monitor) Validate() error {
@@ -97,6 +97,14 @@ func (s *Store) GetFor(id string) Monitor {
 		return m
 	}
 	return s.cur
+}
+
+// Device returns a device's own config and whether it has one (otherwise it uses the default).
+func (s *Store) Device(id string) (Monitor, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.devices[id]
+	return m, ok
 }
 
 // SetFor saves the monitor config of a paired device; an empty id sets the default.

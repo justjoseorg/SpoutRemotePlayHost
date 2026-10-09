@@ -266,7 +266,57 @@ func TestPerDeviceMonitorConfig(t *testing.T) {
 	if !strings.Contains(doFrom(h, remote, "GET", "/api/config", "", auth).Body.String(), `"width":1920`) {
 		t.Fatal("device should read back its own config")
 	}
-	if !strings.Contains(doFrom(h, "127.0.0.1:1", "GET", "/api/config", "", "").Body.String(), `"width":1280`) {
+	if !strings.Contains(doFrom(h, "127.0.0.1:1", "GET", "/api/config", "", "").Body.String(), `"width":1920`) {
 		t.Fatal("default config must be unchanged by a device")
+	}
+}
+
+func TestLocalUIManagesDeviceConfig(t *testing.T) {
+	h, _ := setup(t)
+	const remote = "192.168.1.50:5555"
+	salt, pin, secret := "saltsalt1234", "0427", "client-secret"
+	reqBody := `{"name":"Deck","salt":"` + salt + `","pinHash":"` + pairing.PINHash(salt, pin) +
+		`","secretHash":"` + pairing.SecretHash(secret) + `"}`
+	var rq struct{ ID string }
+	_ = json.Unmarshal(doFrom(h, remote, "POST", "/api/pair/request", reqBody, "").Body.Bytes(), &rq)
+	doFrom(h, "127.0.0.1:1", "POST", "/api/pair/confirm", `{"id":"`+rq.ID+`","pin":"`+pin+`"}`, "")
+	var cl []struct{ ID string }
+	_ = json.Unmarshal(doFrom(h, "127.0.0.1:1", "GET", "/api/clients", "", "").Body.Bytes(), &cl)
+	if len(cl) != 1 {
+		t.Fatalf("clients: %v", cl)
+	}
+	u := "/api/clients/" + cl[0].ID + "/config"
+	if b := doFrom(h, "127.0.0.1:1", "GET", u, "", "").Body.String(); !strings.Contains(b, `"custom":false`) {
+		t.Fatalf("should inherit defaults: %s", b)
+	}
+	body := `{"width":1920,"height":1080,"refreshHz":120,"autoCreate":true,"codec":"hevc"}`
+	if rec := doFrom(h, "127.0.0.1:1", "PUT", u, body, ""); rec.Code != 200 {
+		t.Fatalf("put: %d %s", rec.Code, rec.Body)
+	}
+	if b := doFrom(h, "127.0.0.1:1", "GET", u, "", "").Body.String(); !strings.Contains(b, `"custom":true`) || !strings.Contains(b, `"width":1920`) {
+		t.Fatalf("custom not stored: %s", b)
+	}
+	if b := doFrom(h, "127.0.0.1:1", "DELETE", u, "", "").Body.String(); !strings.Contains(b, `"custom":false`) || !strings.Contains(b, `"width":1920`) {
+		t.Fatalf("reset failed: %s", b)
+	}
+	if rec := doFrom(h, remote, "GET", u, "", "Bearer nope"); rec.Code != 401 {
+		t.Fatalf("remote must not reach it: %d", rec.Code)
+	}
+	if rec := doFrom(h, "127.0.0.1:1", "GET", "/api/clients/nope/config", "", ""); rec.Code != 404 {
+		t.Fatalf("unknown id: %d", rec.Code)
+	}
+}
+
+func TestPairingStoresClientCapabilities(t *testing.T) {
+	h, _ := setup(t)
+	salt, pin := "saltsalt1234", "0427"
+	body := `{"name":"Deck","salt":"` + salt + `","pinHash":"` + pairing.PINHash(salt, pin) +
+		`","secretHash":"` + pairing.SecretHash("s") + `","caps":{"hevc":true,"av1":false,"width":1920,"height":1200,"refreshHz":120}}`
+	var rq struct{ ID string }
+	_ = json.Unmarshal(doFrom(h, "192.168.1.50:5555", "POST", "/api/pair/request", body, "").Body.Bytes(), &rq)
+	doFrom(h, "127.0.0.1:1", "POST", "/api/pair/confirm", `{"id":"`+rq.ID+`","pin":"`+pin+`"}`, "")
+	out := doFrom(h, "127.0.0.1:1", "GET", "/api/clients", "", "").Body.String()
+	if !strings.Contains(out, `"hevc":true`) || !strings.Contains(out, `"width":1920`) || strings.Contains(out, "tokenHash") {
+		t.Fatalf("caps missing or token leaked: %s", out)
 	}
 }

@@ -2,34 +2,80 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SpoutRemotePlayHost</title>
+<meta name="color-scheme" content="dark">
 <style>
-  body { font: 16px system-ui, sans-serif; max-width: 28rem; margin: 2rem auto; padding: 0 1rem; }
-  label { display: block; margin: .75rem 0 .25rem; }
-  input[type=number] { width: 100%; padding: .4rem; box-sizing: border-box; }
-  button { margin: 1rem .5rem 0 0; padding: .5rem 1rem; }
-  .card { border: 1px solid #8884; border-radius: .5rem; padding: .75rem; margin: .5rem 0; }
+  :root { --bg:#0e1116; --panel:#161b22; --line:#262d38; --text:#e6e9ee; --dim:#8b95a5; --accent:#4c9aff; --ok:#3ddc84; --bad:#ff6b6b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 34rem; margin: 0 auto; padding: 2rem 1rem 3rem; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  h1 { font-size: 1.25rem; margin: 0; letter-spacing: .2px; }
+  h2 { font-size: .75rem; margin: 0 0 .75rem; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: .75rem; padding: 1rem; margin-bottom: 1rem; }
+  .pill { display: inline-flex; align-items: center; gap: .4rem; padding: .15rem .6rem; border-radius: 999px; background: #ffffff0d; color: var(--dim); font-size: .8rem; }
+  .pill::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: var(--dim); }
+  .pill.on { color: var(--ok); } .pill.on::before { background: var(--ok); }
+  small { color: var(--dim); }
+  label { display: block; margin: .75rem 0 .25rem; color: var(--dim); font-size: .85rem; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
+  input, select { width: 100%; padding: .5rem .6rem; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: .5rem; font: inherit; }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  input[type=checkbox] { width: auto; margin-right: .5rem; accent-color: var(--accent); }
+  label.check { display: flex; align-items: center; color: var(--text); margin-top: 1rem; }
+  button { padding: .5rem 1rem; margin: 1rem .5rem 0 0; background: #ffffff10; color: var(--text); border: 1px solid var(--line); border-radius: .5rem; font: inherit; cursor: pointer; }
+  button:hover { background: #ffffff1c; }
+  button[type=submit], .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button[type=submit]:hover, .primary:hover { background: #6aaeff; }
+  .danger { color: var(--bad); }
+  .actions { margin-top: 0; }
+  .card { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .6rem .75rem; margin: .5rem 0 0; background: var(--bg); border: 1px solid var(--line); border-radius: .5rem; }
+  .card button { margin: 0 0 0 auto; padding: .3rem .75rem; }
+  .card p { flex-basis: 100%; margin: 0; }
   .card input { width: 6rem; font-size: 1.4rem; letter-spacing: .3rem; text-align: center; }
-  #msg { margin-top: 1rem; min-height: 1.5rem; }
+  .card input + button { margin-left: 0; }
+  .tabs { display: flex; gap: .25rem; margin-bottom: 1rem; border-bottom: 1px solid var(--line); }
+  .tabs button { margin: 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--dim); }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+  .dev { margin: .5rem 0 0; background: var(--bg); border: 1px solid var(--line); border-radius: .5rem; }
+  .dev > .head { display: flex; align-items: center; gap: .5rem; padding: .6rem .75rem; cursor: pointer; }
+  .dev .head .name { flex: 1; font-weight: 600; }
+  .dev .body { padding: 0 .75rem .75rem; border-top: 1px solid var(--line); }
+  .tag { padding: .05rem .5rem; border-radius: 999px; background: #ffffff0d; color: var(--dim); font-size: .75rem; }
+  .tag.custom { background: #4c9aff22; color: var(--accent); }
+  .dev button { margin: .75rem .5rem 0 0; }
+  #pairing { border-color: var(--accent); }
+  #msg { min-height: 1.5rem; color: var(--dim); text-align: center; }
 </style>
-<h1>SpoutRemotePlayHost</h1>
-<section id="pairing" hidden>
+<main>
+<header><h1>Spout Remote Play Host</h1><span><span class="pill" id="pill">…</span> <small id="ver"></small></span></header>
+<section class="panel" id="pairing" hidden>
   <h2>Pairing request</h2>
   <div id="pending"></div>
 </section>
-<p>Virtual monitor: <strong id="state">…</strong> <small id="ver"></small></p>
-<form id="f">
-  <label>Width <input type="number" name="width"></label>
-  <label>Height <input type="number" name="height"></label>
-  <label>Refresh (Hz) <input type="number" name="refreshHz"></label>
-  <label>Codec preference (hint only; Steam picks the real codec)
-    <select name="codec"><option value="auto">Auto</option><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="av1">AV1</option></select></label>
-  <label><input type="checkbox" name="autoCreate"> Create automatically when a Remote Play session starts</label>
-  <button type="submit">Save</button>
-</form>
-<button id="create">Create monitor</button><button id="destroy">Destroy monitor</button>
-<h2>Paired devices</h2>
-<div id="clients"></div>
+<nav class="tabs"><button data-tab="devices" class="on">Devices</button><button data-tab="defaults">Monitor defaults</button></nav>
+<section class="panel" id="tab-defaults" hidden>
+  <h2>Monitor defaults</h2>
+  <p><small>Used by every device that has no custom monitor.</small></p>
+  <form id="f">
+    <div class="row">
+      <label>Width <input type="number" name="width"></label>
+      <label>Height <input type="number" name="height"></label>
+      <label>Refresh (Hz) <input type="number" name="refreshHz"></label>
+    </div>
+    <label>Codec preference (hint only; Steam picks the real codec)
+      <select name="codec"><option value="auto">Auto</option><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="av1">AV1</option></select></label>
+    <label class="check"><input type="checkbox" name="autoCreate"> Create automatically when a Remote Play session starts</label>
+    <button type="submit">Save</button>
+    <button type="button" id="create" class="primary">Create monitor</button>
+    <button type="button" id="destroy">Destroy monitor</button>
+  </form>
+</section>
+<section class="panel" id="tab-devices">
+  <h2>Paired devices</h2>
+  <div id="clients"></div>
+</section>
 <div id="msg"></div>
+</main>
 <script>
 const $ = (s) => document.querySelector(s);
 const msg = (t) => ($("#msg").textContent = t);
@@ -45,7 +91,8 @@ async function load() {
   $("#f").autoCreate.checked = c.autoCreate;
   $("#f").codec.value = c.codec;
   const s = await api("GET", "/api/status");
-  $("#state").textContent = s.monitorActive ? "active" : "inactive";
+  $("#pill").textContent = s.monitorActive ? "Monitor active" : "Monitor inactive";
+  $("#pill").classList.toggle("on", s.monitorActive);
   $("#ver").textContent = "v" + s.version;
 }
 $("#f").onsubmit = async (e) => {
@@ -79,7 +126,7 @@ async function refreshPairing() {
       box.replaceChildren(...pending.map((p) => {
         const card = el("div", "", { className: "card" });
         const pin = el("input", "", { inputMode: "numeric", maxLength: 4, placeholder: "PIN" });
-        const ok = el("button", "Pair", { onclick: async () => {
+        const ok = el("button", "Pair", { className: "primary", onclick: async () => {
           try { await api("POST", "/api/pair/confirm", { id: p.id, pin: pin.value }); msg("Paired " + p.name); }
           catch (err) { msg(err.message); }
           refreshPairing(); refreshClients();
@@ -91,16 +138,69 @@ async function refreshPairing() {
     }
   } catch (e) {}
 }
+const open = new Set();
+function caps(c) {
+  const k = c.caps || {};
+  const parts = ["H.264", k.hevc && "HEVC", k.av1 && "AV1"].filter(Boolean);
+  if (k.width) parts.push(k.width + "×" + k.height + (k.refreshHz ? " @ " + k.refreshHz + "Hz" : ""));
+  return "Decodes " + parts.join(", ");
+}
+function monitorForm(cfg, c, onSave) {
+  const f = el("form");
+  const num = (name, label) => {
+    const i = el("input", "", { type: "number", name, value: cfg[name] });
+    const l = el("label", label + " "); l.append(i); return l;
+  };
+  const row = el("div", "", { className: "row" });
+  row.append(num("width", "Width"), num("height", "Height"), num("refreshHz", "Refresh (Hz)"));
+  const sel = el("select", "", { name: "codec" });
+  const k = c.caps || {};
+  const ok = (v) => v === "auto" || v === "h264" || (v === "hevc" && k.hevc) || (v === "av1" && k.av1) || v === cfg.codec;
+  for (const [v, t] of [["auto", "Auto"], ["h264", "H.264"], ["hevc", "HEVC"], ["av1", "AV1"]])
+    if (ok(v)) sel.append(el("option", t, { value: v, selected: v === cfg.codec }));
+  const cl = el("label", "Codec preference (hint only; Steam picks the real codec) "); cl.append(sel);
+  const auto = el("input", "", { type: "checkbox", name: "autoCreate", checked: cfg.autoCreate });
+  const al = el("label", "", { className: "check" }); al.append(auto, " Create automatically when a Remote Play session starts");
+  f.append(row, cl, al, el("button", "Save custom monitor", { type: "submit" }));
+  f.onsubmit = (e) => { e.preventDefault(); onSave({
+    width: +f.width.value, height: +f.height.value, refreshHz: +f.refreshHz.value,
+    codec: sel.value, autoCreate: auto.checked }); };
+  return f;
+}
 async function refreshClients() {
   const list = await api("GET", "/api/clients");
-  $("#clients").replaceChildren(...(list.length ? list : [null]).map((c) => {
-    if (!c) return el("p", "None yet.");
-    const row = el("div", "", { className: "card" });
-    row.append(el("strong", c.name), el("span", "  " + new Date(c.added).toLocaleDateString() + "  "),
-      el("button", "Revoke", { onclick: async () => { await api("DELETE", "/api/clients/" + c.id); refreshClients(); } }));
-    return row;
+  const cards = await Promise.all(list.map(async (c) => {
+    const { custom, config } = await api("GET", "/api/clients/" + c.id + "/config");
+    const dev = el("div", "", { className: "dev" });
+    const head = el("div", "", { className: "head", onclick: () => { open.has(c.id) ? open.delete(c.id) : open.add(c.id); refreshClients(); } });
+    head.append(el("span", c.name, { className: "name" }),
+      el("span", custom ? "Custom monitor" : "Default monitor", { className: "tag" + (custom ? " custom" : "") }),
+      el("span", open.has(c.id) ? "▾" : "▸"));
+    dev.append(head);
+    if (open.has(c.id)) {
+      const body = el("div", "", { className: "body" });
+      body.append(el("p", caps(c) + " · paired " + new Date(c.added).toLocaleDateString(), { className: "dim" }));
+      body.firstChild.style.color = "var(--dim)";
+      body.append(monitorForm(config, c, async (m) => {
+        try { await api("PUT", "/api/clients/" + c.id + "/config", m); msg("Saved " + c.name); } catch (err) { msg(err.message); }
+        refreshClients();
+      }));
+      const f = body.lastChild;
+      if (custom) f.append(el("button", "Use defaults", { type: "button", onclick: async () => { await api("DELETE", "/api/clients/" + c.id + "/config"); refreshClients(); } }));
+      f.append(el("button", "Revoke", { type: "button", className: "danger", onclick: async () => {
+        if (confirm("Revoke " + c.name + "?")) { await api("DELETE", "/api/clients/" + c.id); refreshClients(); } } }));
+      dev.append(body);
+    }
+    return dev;
   }));
+  $("#clients").replaceChildren(...(cards.length ? cards : [el("small", "No paired devices yet.")]));
 }
+for (const b of document.querySelectorAll(".tabs button"))
+  b.onclick = () => {
+    for (const x of document.querySelectorAll(".tabs button")) x.classList.toggle("on", x === b);
+    $("#tab-devices").hidden = b.dataset.tab !== "devices";
+    $("#tab-defaults").hidden = b.dataset.tab !== "defaults";
+  };
 load();
 refreshClients();
 refreshPairing();
