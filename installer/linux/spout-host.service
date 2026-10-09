@@ -2,7 +2,7 @@
 Description=SpoutRemotePlayHost
 
 [Service]
-ExecStart=%h/.local/bin/spout-host
+ExecStart=%h/.local/bin/spout-host -listen 0.0.0.0:47995
 Restart=on-failure
 
 [Install]
