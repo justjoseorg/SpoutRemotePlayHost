@@ -32,6 +32,10 @@ jobs:
           last=$(git tag --list "v${base}.*" --sort=-v:refname | head -1)
           patch=$(( ${last:+${last##*.} + 1} + 0 ))
           echo "version=${base}.${patch}" >> "$GITHUB_OUTPUT"
+      - name: Check release notes
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: bash .github/scripts/release-notes.sh "${{ steps.ver.outputs.version }}" "$PR_TITLE" "${{ github.event.pull_request.number }}"
 
   linux:
     needs: version
@@ -104,6 +108,9 @@ jobs:
     needs: [version, linux, windows-installer]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -112,9 +119,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.version.outputs.version }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           mv artifacts/spout-host-windows-amd64.exe "artifacts/spout-host-v${VERSION}-windows-amd64.exe"
+          bash .github/scripts/release-notes.sh "$VERSION" "$PR_TITLE" "${{ github.event.pull_request.number }}" > notes.md
           gh release create "v${VERSION}" artifacts/* --repo "${{ github.repository }}" \
             --target "${{ github.event.pull_request.merge_commit_sha }}" \
             --title "v${VERSION}" \
-            --notes "${{ github.event.pull_request.title }} (#${{ github.event.pull_request.number }})"
+            --notes-file notes.md

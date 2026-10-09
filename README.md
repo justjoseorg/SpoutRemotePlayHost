@@ -21,6 +21,8 @@
   <a href="https://github.com/justjoseorg/SpoutRemotePlayHost/releases/latest"><b>⬇️ Download the latest release</b></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/justjoseorg/SpoutRemotePlay">🎮 Decky plugin</a>
+  &nbsp;·&nbsp;
+  <a href="CHANGELOG.md">📝 Changelog</a>
 </p>
 
 ---
