@@ -28,6 +28,21 @@ const (
 var interfaceGUID = windows.GUID{Data1: 0xe5bcc234, Data2: 0x1e0c, Data3: 0x418a,
 	Data4: [8]byte{0xa0, 0xd4, 0xef, 0x8b, 0x75, 0x01, 0x41, 0x4d}}
 
+// monitorGUID identifies our virtual monitor. It is fixed so Windows sees the same monitor
+// every session and reuses its display database entry instead of adding a new one each time.
+var monitorGUID = windows.GUID{Data1: 0x5b0a7e31, Data2: 0x9c4d, Data3: 0x4f2a,
+	Data4: [8]byte{0x8e, 0x61, 0x53, 0x50, 0x4f, 0x55, 0x54, 0x01}}
+
+// Layout watchdog: how often the session layout is checked, and the least time between
+// two re-isolations so we never fight Windows in a tight loop.
+const (
+	watchPeriod      = 500 * time.Millisecond
+	reisolateBackoff = 2 * time.Second
+)
+
+// topo serialises layout changes made by create, the watchdog and destroy.
+var topo sync.Mutex
+
 type addParams struct {
 	Width, Height, RefreshRate uint32
 	MonitorGUID                windows.GUID
@@ -161,11 +176,7 @@ func (s *sudovda) create(m Mode) error {
 		return fmt.Errorf("unsupported SudoVDA protocol %d.%d.%d", ver.Major, ver.Minor, ver.Incremental)
 	}
 
-	guid, err := windows.GenerateGUID()
-	if err != nil {
-		windows.CloseHandle(h)
-		return err
-	}
+	guid := monitorGUID
 	// Remember the layout before the virtual display exists so it can be restored exactly.
 	origPaths, origModes, err := queryConfig(qdcOnlyActivePaths)
 	if err != nil {
@@ -184,13 +195,53 @@ func (s *sudovda) create(m Mode) error {
 	go s.keepAlive(h, s.stop)
 
 	// Steam streams the primary display, so the virtual display becomes the only one (plus the
-	// displays the user chose to keep). Nothing is saved; destroy puts the old layout back.
+	// displays the user chose to keep). destroy puts the old layout back.
 	adapter := luid{Low: binary.LittleEndian.Uint32(out.AdapterLUID[:4]), High: int32(binary.LittleEndian.Uint32(out.AdapterLUID[4:]))}
 	setSessionLayout(origPaths, origModes, &targetRef{adapter, out.TargetID})
-	if err := isolate(adapter, out.TargetID, keepOutputs()); err != nil {
+	topo.Lock()
+	err = isolate(adapter, out.TargetID, keepOutputs())
+	topo.Unlock()
+	if err != nil {
 		log.Println("virtual display created but other displays not turned off:", err)
 	}
+	go watchLayout(adapter, out.TargetID, s.stop)
 	return nil
+}
+
+// watchLayout re-isolates the virtual display while the session runs if Windows changes the
+// layout behind our back, e.g. a monitor that was turned off sleeps, drops off the bus and
+// comes back, and Windows turns some display back on.
+func watchLayout(adapter luid, target uint32, stop chan struct{}) {
+	t := time.NewTicker(watchPeriod)
+	defer t.Stop()
+	var last time.Time
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+		}
+		if time.Since(last) < reisolateBackoff {
+			continue
+		}
+		topo.Lock()
+		select {
+		case <-stop:
+			topo.Unlock()
+			return
+		default:
+		}
+		keep := keepOutputs()
+		if drifted(adapter, target, keep) {
+			last = time.Now()
+			if err := isolate(adapter, target, keep); err != nil {
+				log.Println("display layout changed during the session; re-isolating failed:", err)
+			} else {
+				log.Println("display layout changed during the session; virtual display isolated again")
+			}
+		}
+		topo.Unlock()
+	}
 }
 
 // The driver removes displays when it stops being pinged, so keep it alive.
@@ -221,12 +272,14 @@ func (s *sudovda) destroy() error {
 	close(s.stop)
 	// Bring the physical displays back before removing the virtual one, so there is never a
 	// moment without any active display.
+	topo.Lock()
 	if paths, modes, _ := sessionLayout(); paths != nil {
 		if err := restore(paths, modes); err != nil {
 			log.Println("could not restore the display layout:", err)
 		}
 	}
 	setSessionLayout(nil, nil, nil)
+	topo.Unlock()
 	err := ioctl(s.handle, ioctlRemoveDisplay, unsafe.Pointer(&s.guid), nil, uint32(unsafe.Sizeof(s.guid)), 0)
 	windows.CloseHandle(s.handle)
 	s.handle = 0

@@ -18,6 +18,7 @@ const (
 	sdcTopologyExtend       = 0x4
 	sdcUseSuppliedConfig    = 0x20
 	sdcApply                = 0x80
+	sdcSaveToDatabase       = 0x200
 	sdcAllowChanges         = 0x400
 	modeInfoTypeSource      = 1
 	pathModeIdxInvalid      = 0xffffffff
@@ -161,7 +162,7 @@ func sourceOf(p pathInfo, modes []modeInfo) *sourceMode {
 
 // isolate makes the display on (adapter, target) the primary one at the desktop origin and
 // turns off every other display except those whose ID is in keep. Kept displays are placed to
-// its right, keeping their arrangement. Nothing is saved to the display database.
+// its right, keeping their arrangement.
 func isolate(adapter luid, target uint32, keep []string) error {
 	paths, modes, vi, err := waitActive(adapter, target)
 	if err != nil {
@@ -220,7 +221,39 @@ func isolate(adapter luid, target uint32, keep []string) error {
 		}
 	}
 	v.X, v.Y = 0, 0
+	// Saved so Windows re-applies it itself when a display reconnects (an off monitor that
+	// sleeps can drop off the bus and come back). The database entry belongs to the set of
+	// connected displays including the virtual one, so the normal layout is untouched.
+	if err := setConfig(np, nm, sdcApply|sdcUseSuppliedConfig|sdcAllowChanges|sdcSaveToDatabase); err == nil {
+		return nil
+	}
 	return setConfig(np, nm, sdcApply|sdcUseSuppliedConfig|sdcAllowChanges)
+}
+
+// drifted reports whether the active layout no longer matches isolate's: the display on
+// (adapter, target) is not active or not at the origin, or another display not in keep is on.
+func drifted(adapter luid, target uint32, keep []string) bool {
+	paths, modes, err := queryConfig(qdcOnlyActivePaths)
+	if err != nil {
+		return false
+	}
+	vi := findActivePath(paths, adapter, target)
+	if vi < 0 {
+		return true
+	}
+	if s := sourceOf(paths[vi], modes); s == nil || s.X != 0 || s.Y != 0 {
+		return true
+	}
+	keepSet := map[string]bool{}
+	for _, id := range keep {
+		keepSet[id] = true
+	}
+	for i, p := range paths {
+		if i != vi && !keepSet[targetID(p.Target.Adapter, p.Target.ID)] {
+			return true
+		}
+	}
+	return false
 }
 
 // restore re-applies a config saved with queryConfig, falling back to the display database.
