@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Pick up your handheld, press play on a game from your PC, and go.</b><br>
-  A virtual monitor for Steam's native Remote Play, sized to the device you stream to.
+  Complements Steam's native Remote Play: wakes your PC and keeps the stream on a virtual monitor, with your other displays off.
 </p>
 
 <p align="center">
@@ -41,11 +41,14 @@
 
 ## ✨ What it does
 
-This is an integrated solution with a narrow purpose: **the virtual monitor, integrated with Steam's native Remote Play.** It does not stream anything itself and does not replace Steam. Steam keeps doing the streaming (capture, encode, input, Steam Link on the handheld); this app only watches for a Remote Play session and gives it a dedicated virtual monitor matching the connecting device, then removes it when the session ends.
+This app complements Steam's native Remote Play and makes it better. It does not stream anything itself and does not replace Steam: Steam keeps doing the streaming (capture, encode, input, Steam Link on the handheld). This app watches for a Remote Play session and makes sure the stream lands on a virtual monitor, with your other displays off, then puts everything back when the session ends.
+
+- **Windows:** Steam creates the virtual display itself (with the SudoVDA driver) and sizes it to the device. The host waits for that display, turns the other displays off and restores them afterwards. See [Steam setup](#-steam-setup-windows).
+- **Linux:** Steam doesn't create a virtual display there, so the host creates one sized to the device and removes it afterwards.
 
 | | |
 |---|---|
-| 🖥️ **Virtual monitor per device** | Resolution and refresh rate come from that device's config. |
+| 🖥️ **Virtual monitor per device** | On Linux, resolution and refresh rate come from that device's config. On Windows, Steam sizes its own virtual display. |
 | ⭐ **Primary while streaming** | The virtual monitor is the primary display during the session, so Steam streams it. |
 | 🌑 **Other displays off** (Windows) | Every other display is turned off during the session, except the ones you keep on. The previous layout is restored when it ends. Linux doesn't turn displays off yet. |
 | 🔐 **Paired devices only** | Unpaired clients never get a monitor. |
@@ -76,7 +79,18 @@ Good to know:
 
 - Launching the host while it already runs just opens its web UI; launched by hand it opens the UI at startup.
 - The exe has no console: errors are shown in a message box and logged to `%APPDATA%\SpoutRemotePlayHost\spout-host.log`.
-- Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) removes the virtual monitor. If another app already registered it, the hotkey is disabled (logged) and the host runs normally.
+- Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) ends the session's display handling and brings your displays back. If another app already registered it, the hotkey is disabled (logged) and the host runs normally.
+
+### 🎮 Steam setup (Windows)
+
+Steam creates its own virtual display for Remote Play using the SudoVDA driver the installer provides. These steps follow public descriptions of the Steam client beta and have not been checked on our own PC yet, so Steam's wording may differ:
+
+1. Install the host with the **SudoVDA virtual display driver** option ticked (or keep an existing SudoVDA).
+2. In Steam, join the client beta: **Steam > Settings > Interface > Client Beta Participation**, then restart Steam.
+3. In **Steam > Settings > Remote Play > Advanced Host Options**, enable the virtual display option if Steam offers it.
+4. Stream from your handheld. The host waits up to 20 seconds for Steam's display (it recognises it by the SudoVDA name), turns the other displays off and restores them when the session ends. If Steam's display never appears, your displays are left on.
+
+Untested on Windows: how the host recognises Steam's display, and the restore.
 
 ### 🐧 Linux
 
@@ -100,7 +114,7 @@ Requests expire after 2 minutes and are cancelled after 5 wrong PINs. Confirming
 
 The **Monitor config** tab of the web UI has:
 
-- **Defaults:** the virtual monitor used by devices without their own settings. Each device can override it from the Devices tab or from the plugin.
+- **Defaults:** the virtual monitor used by devices without their own settings (Linux only; on Windows Steam sizes its own display). Each device can override it from the Devices tab or from the plugin.
 - **Displays during a session** (Windows): tick the displays to keep on while streaming. Unticked ones are turned off and come back when the session ends. If Windows turns a display back on mid-session (e.g. a monitor that was off goes to sleep and reconnects), the host turns it off again.
 
 There is no codec setting: Steam Remote Play negotiates the codec itself, and PyroWave is not available with Steam streaming.
