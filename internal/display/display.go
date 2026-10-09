@@ -12,6 +12,27 @@ type Mode struct {
 	Width, Height, RefreshHz int
 }
 
+// Output is a physical display of this PC.
+type Output struct {
+	ID      string `json:"id"`     // stable across sessions and reboots
+	Name    string `json:"name"`   // monitor model, e.g. "LG ULTRAWIDE"
+	Device  string `json:"device"` // OS name, e.g. \\.\DISPLAY2
+	Width   int    `json:"width"`
+	Height  int    `json:"height"`
+	Primary bool   `json:"primary"`
+}
+
+// KeepOutputs, when set, returns the IDs of displays left on during a session; every other
+// physical display is turned off while the virtual monitor exists (where supported).
+var KeepOutputs func() []string
+
+func keepOutputs() []string {
+	if KeepOutputs == nil {
+		return nil
+	}
+	return KeepOutputs()
+}
+
 // Manager creates and removes the virtual monitor used for a session.
 type Manager interface {
 	Create(Mode) error

@@ -52,9 +52,9 @@
   <h2>Pairing request</h2>
   <div id="pending"></div>
 </section>
-<nav class="tabs"><button data-tab="devices" class="on">Devices</button><button data-tab="apps">Apps</button><button data-tab="defaults">Monitor defaults</button></nav>
+<nav class="tabs"><button data-tab="devices" class="on">Devices</button><button data-tab="apps">Apps</button><button data-tab="defaults">Monitor config</button></nav>
 <section class="panel" id="tab-defaults" hidden>
-  <h2>Monitor defaults</h2>
+  <h2>Defaults</h2>
   <p><small>Used by every device that has no custom monitor.</small></p>
   <form id="f">
     <div class="row">
@@ -67,6 +67,9 @@
     <button type="button" id="create" class="primary">Create monitor</button>
     <button type="button" id="destroy">Destroy monitor</button>
   </form>
+  <h2 style="margin-top:1.5rem">Displays during a session</h2>
+  <p><small>While a paired device streams, the virtual monitor is the main display and every other display is turned off. Tick a display to keep it on. Your layout comes back when the session ends.</small></p>
+  <div id="displays"></div>
 </section>
 <section class="panel" id="tab-apps" hidden>
   <h2>Apps in Steam</h2>
@@ -233,6 +236,24 @@ async function refreshSteamDevices() {
   }));
   $("#steamdevs").replaceChildren(...(cards.length ? cards : [el("small", "No other Steam devices found (Steam must be running with Steam integration enabled).")]));
 }
+function renderDisplays(r) {
+  if (!r.supported) {
+    $("#displays").replaceChildren(el("small", "Turning displays off is not supported on this platform yet; they stay on."));
+    return;
+  }
+  const rows = r.displays.map((d) => {
+    const box = el("input", "", { type: "checkbox", checked: d.keep, onchange: async () => {
+      const keep = r.displays.filter((x) => (x.id === d.id ? box.checked : x.keep)).map((x) => x.id);
+      try { renderDisplays(await api("PUT", "/api/displays/keep", { keep })); msg("Saved"); }
+      catch (err) { msg(err.message); refreshDisplays(); }
+    } });
+    const l = el("label", "", { className: "check" });
+    l.append(box, `Keep ${d.name} on`, el("small", ` ${d.device} · ${d.width}×${d.height}${d.primary ? " · main" : ""}`));
+    return l;
+  });
+  $("#displays").replaceChildren(...(rows.length ? rows : [el("small", "No displays found.")]));
+}
+async function refreshDisplays() { try { renderDisplays(await api("GET", "/api/displays")); } catch (err) { msg(err.message); } }
 for (const b of document.querySelectorAll(".tabs button"))
   b.onclick = () => {
     for (const x of document.querySelectorAll(".tabs button")) x.classList.toggle("on", x === b);
@@ -240,6 +261,7 @@ for (const b of document.querySelectorAll(".tabs button"))
     $("#tab-defaults").hidden = b.dataset.tab !== "defaults";
     $("#tab-apps").hidden = b.dataset.tab !== "apps";
     if (b.dataset.tab === "apps") refreshApps();
+    if (b.dataset.tab === "defaults") refreshDisplays();
   };
 function renderApps(r) {
   const st = r.steam;

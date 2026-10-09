@@ -2,6 +2,7 @@
 package session
 
 import (
+	"log"
 	"sync"
 	"time"
 
@@ -63,14 +64,19 @@ func (c *Controller) Destroy() error {
 	return c.disp.Destroy()
 }
 
-// Start handles a Remote Play session starting for device id ("" when unknown).
-// It reports whether a monitor was created.
+// Start handles a Remote Play session starting for device id ("" when the client isn't paired).
+// Only paired devices get a virtual monitor, on every platform. It reports whether one was created.
 func (c *Controller) Start(id string) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if id == "" {
+		log.Println("session from an unpaired client: no virtual monitor")
+		return false, nil
+	}
 	c.cancelLocked()
 	cfg := c.cfg.GetFor(id)
 	if !cfg.AutoCreate {
+		log.Printf("session for device %q: auto-create is off", id)
 		return false, nil
 	}
 	if c.disp.Active() && c.owner == id && c.mode == modeOf(cfg) {
@@ -79,6 +85,7 @@ func (c *Controller) Start(id string) (bool, error) {
 	if err := c.createLocked(id); err != nil {
 		return false, err
 	}
+	log.Printf("virtual monitor %dx%d@%d created for device %q", c.mode.Width, c.mode.Height, c.mode.RefreshHz, id)
 	return true, nil
 }
 
@@ -91,7 +98,7 @@ func (c *Controller) Stop(id string) {
 	}
 	c.cancelLocked()
 	if c.Grace <= 0 {
-		_ = c.disp.Destroy()
+		c.destroyLocked()
 		return
 	}
 	c.timer = time.AfterFunc(c.Grace, func() {
@@ -99,9 +106,17 @@ func (c *Controller) Stop(id string) {
 		defer c.mu.Unlock()
 		if c.timer != nil {
 			c.timer = nil
-			_ = c.disp.Destroy()
+			c.destroyLocked()
 		}
 	})
+}
+
+func (c *Controller) destroyLocked() {
+	if err := c.disp.Destroy(); err != nil {
+		log.Println("virtual monitor:", err)
+		return
+	}
+	log.Printf("session ended: virtual monitor for device %q removed", c.owner)
 }
 
 // OwnedBy reports whether the live monitor was created for device id.

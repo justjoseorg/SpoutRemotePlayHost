@@ -55,6 +55,8 @@ func NewServer(cfg *config.Store, disp display.Manager, version, token string, p
 	mux.HandleFunc("PUT /api/config", s.putConfig)
 	mux.HandleFunc("POST /api/monitor/create", s.create)
 	mux.HandleFunc("POST /api/monitor/destroy", s.destroy)
+	mux.HandleFunc("GET /api/displays", localOnly(s.displays))
+	mux.HandleFunc("PUT /api/displays/keep", localOnly(s.putKeep))
 	mux.HandleFunc("POST /api/session", s.session)
 	mux.HandleFunc("GET /api/discover", s.discover)
 	mux.HandleFunc("POST /api/pair/request", s.pairRequest)
@@ -147,6 +149,50 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]bool{"monitorActive": true})
+}
+
+// listOutputs is display.Outputs, replaceable in tests.
+var listOutputs = display.Outputs
+
+// displays lists this PC's displays and whether each stays on during a session.
+func (s *Server) displays(w http.ResponseWriter, _ *http.Request) {
+	type entry struct {
+		display.Output
+		Keep bool `json:"keep"`
+	}
+	outs, err := listOutputs()
+	if errors.Is(err, display.ErrNotImplemented) {
+		writeJSON(w, 200, map[string]any{"supported": false, "displays": []entry{}})
+		return
+	}
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	keep := map[string]bool{}
+	for _, id := range s.cfg.KeepDisplays() {
+		keep[id] = true
+	}
+	list := make([]entry, 0, len(outs))
+	for _, o := range outs {
+		list = append(list, entry{o, keep[o.ID]})
+	}
+	writeJSON(w, 200, map[string]any{"supported": true, "displays": list})
+}
+
+func (s *Server) putKeep(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Keep []string `json:"keep"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	if err := s.cfg.SetKeepDisplays(body.Keep); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	s.displays(w, r)
 }
 
 func (s *Server) destroy(w http.ResponseWriter, _ *http.Request) {

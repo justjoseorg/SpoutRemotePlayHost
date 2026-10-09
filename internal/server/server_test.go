@@ -340,13 +340,48 @@ func TestSessionStartStop(t *testing.T) {
 	srv := NewServer(store, fd, "test", "tok", mustPair(t))
 	srv.Sessions().Grace = 0
 	h := srv.Handler()
-	if r := do(h, "POST", "/api/session", `{"state":"start"}`); r.Code != 200 || !fd.active || len(fd.modes) != 1 {
+	if r := do(h, "POST", "/api/session", `{"state":"start"}`); r.Code != 200 || fd.active {
+		t.Fatalf("unpaired start must not create: %d active=%v", r.Code, fd.active)
+	}
+	const remote = "192.168.1.50:5555"
+	salt, pin, secret := "saltsalt1234", "0427", "client-secret"
+	reqBody := `{"name":"Deck","salt":"` + salt + `","pinHash":"` + pairing.PINHash(salt, pin) +
+		`","secretHash":"` + pairing.SecretHash(secret) + `"}`
+	var rq struct{ ID string }
+	_ = json.Unmarshal(doFrom(h, remote, "POST", "/api/pair/request", reqBody, "").Body.Bytes(), &rq)
+	doFrom(h, "127.0.0.1:1", "POST", "/api/pair/confirm", `{"id":"`+rq.ID+`","pin":"`+pin+`"}`, "")
+	var pr struct{ Token string }
+	_ = json.Unmarshal(doFrom(h, remote, "POST", "/api/pair/poll", `{"id":"`+rq.ID+`","secret":"`+secret+`"}`, "").Body.Bytes(), &pr)
+	auth := "Bearer " + pr.Token
+	if r := doFrom(h, remote, "POST", "/api/session", `{"state":"start"}`, auth); r.Code != 200 || !fd.active || len(fd.modes) != 1 {
 		t.Fatalf("start: %d active=%v", r.Code, fd.active)
 	}
-	if r := do(h, "POST", "/api/session", `{"state":"stop"}`); r.Code != 200 || fd.active {
+	if r := doFrom(h, remote, "POST", "/api/session", `{"state":"stop"}`, auth); r.Code != 200 || fd.active {
 		t.Fatalf("stop: %d active=%v", r.Code, fd.active)
 	}
 	if r := do(h, "POST", "/api/session", `{"state":"nope"}`); r.Code != 400 {
 		t.Fatalf("bad state: %d", r.Code)
+	}
+}
+
+func TestDisplaysKeepList(t *testing.T) {
+	old := listOutputs
+	defer func() { listOutputs = old }()
+	listOutputs = func() ([]display.Output, error) {
+		return []display.Output{{ID: "mon-a", Name: "A", Primary: true}, {ID: "mon-b", Name: "B"}}, nil
+	}
+	h, _ := setup(t)
+	if out := do(h, "GET", "/api/displays", "").Body.String(); !strings.Contains(out, `"supported":true`) || strings.Contains(out, `"keep":true`) {
+		t.Fatalf("default keeps nothing: %s", out)
+	}
+	if r := do(h, "PUT", "/api/displays/keep", `{"keep":["mon-b"]}`); r.Code != 200 || !strings.Contains(r.Body.String(), `"id":"mon-b","name":"B","device":"","width":0,"height":0,"primary":false,"keep":true`) {
+		t.Fatalf("keep: %d %s", r.Code, r.Body)
+	}
+	if r := doFrom(h, "192.168.1.50:5555", "PUT", "/api/displays/keep", `{"keep":[]}`, "Bearer tok"); r.Code == 200 {
+		t.Fatal("only the local UI may change displays")
+	}
+	listOutputs = func() ([]display.Output, error) { return nil, display.ErrNotImplemented }
+	if out := do(h, "GET", "/api/displays", "").Body.String(); !strings.Contains(out, `"supported":false`) {
+		t.Fatalf("unsupported: %s", out)
 	}
 }
