@@ -14,6 +14,7 @@ import (
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/session"
 )
 
 //go:embed web
@@ -24,19 +25,31 @@ type Server struct {
 	disp    display.Manager
 	version string
 	pair    *pairing.Manager
-	// owner is the device whose config the active virtual monitor was created from.
-	owner string
+	sess    *session.Controller
+	handler http.Handler
 }
 
-// New returns the HTTP handler. Requests from non-loopback addresses must send "Authorization: Bearer <token>".
+// Sessions returns the controller that ties Remote Play sessions to the virtual monitor.
+func (s *Server) Sessions() *session.Controller { return s.sess }
+
+// Handler returns the HTTP handler.
+func (s *Server) Handler() http.Handler { return s.handler }
+
+// New returns the HTTP handler. Non-loopback requests must send a bearer token.
 func New(cfg *config.Store, disp display.Manager, version, token string, pair *pairing.Manager) http.Handler {
-	s := &Server{cfg: cfg, disp: disp, version: version, pair: pair}
+	return NewServer(cfg, disp, version, token, pair).Handler()
+}
+
+// NewServer is New but also exposes the session controller.
+func NewServer(cfg *config.Store, disp display.Manager, version, token string, pair *pairing.Manager) *Server {
+	s := &Server{cfg: cfg, disp: disp, version: version, pair: pair, sess: session.New(cfg, disp)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.status)
 	mux.HandleFunc("GET /api/config", s.getConfig)
 	mux.HandleFunc("PUT /api/config", s.putConfig)
 	mux.HandleFunc("POST /api/monitor/create", s.create)
 	mux.HandleFunc("POST /api/monitor/destroy", s.destroy)
+	mux.HandleFunc("POST /api/session", s.session)
 	mux.HandleFunc("GET /api/discover", s.discover)
 	mux.HandleFunc("POST /api/pair/request", s.pairRequest)
 	mux.HandleFunc("POST /api/pair/poll", s.pairPoll)
@@ -50,7 +63,8 @@ func New(cfg *config.Store, disp display.Manager, version, token string, pair *p
 	mux.HandleFunc("DELETE /api/clients/{id}/config", localOnly(s.resetClientConfig))
 	sub, _ := fs.Sub(webFS, "web")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
-	return requireToken(mux, token, pair)
+	s.handler = requireToken(mux, token, pair)
+	return s
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -97,8 +111,8 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Re-create a live virtual display so resolution/refresh changes apply immediately.
-	if s.disp.Active() && s.owner == id && (old.Width != m.Width || old.Height != m.Height || old.RefreshHz != m.RefreshHz) {
-		if err := s.disp.Create(display.Mode{Width: m.Width, Height: m.Height, RefreshHz: m.RefreshHz}); err != nil {
+	if s.sess.OwnedBy(id) && (old.Width != m.Width || old.Height != m.Height || old.RefreshHz != m.RefreshHz) {
+		if err := s.sess.Reapply(id); err != nil {
 			writeErr(w, 500, fmt.Errorf("saved, but could not apply to the active monitor: %w", err))
 			return
 		}
@@ -107,9 +121,7 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) create(w http.ResponseWriter, r *http.Request) {
-	id := s.deviceID(r)
-	c := s.cfg.GetFor(id)
-	err := s.disp.Create(display.Mode{Width: c.Width, Height: c.Height, RefreshHz: c.RefreshHz})
+	err := s.sess.Create(s.deviceID(r))
 	if errors.Is(err, display.ErrNotImplemented) {
 		writeErr(w, 501, err)
 		return
@@ -118,12 +130,11 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err)
 		return
 	}
-	s.owner = id
 	writeJSON(w, 200, map[string]bool{"monitorActive": true})
 }
 
 func (s *Server) destroy(w http.ResponseWriter, _ *http.Request) {
-	if err := s.disp.Destroy(); err != nil {
+	if err := s.sess.Destroy(); err != nil {
 		writeErr(w, 500, err)
 		return
 	}
@@ -159,4 +170,30 @@ func requireToken(next http.Handler, token string, pair *pairing.Manager) http.H
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// session lets a paired client report that its Remote Play stream started or stopped.
+func (s *Server) session(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		State string `json:"state"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	id := s.deviceID(r)
+	switch body.State {
+	case "start":
+		created, err := s.sess.Start(id)
+		if err != nil {
+			writeErr(w, 500, err)
+			return
+		}
+		writeJSON(w, 200, map[string]bool{"monitorActive": s.disp.Active(), "created": created})
+	case "stop":
+		s.sess.Stop(id)
+		writeJSON(w, 200, map[string]bool{"ok": true})
+	default:
+		writeErr(w, 400, errors.New(`state must be "start" or "stop"`))
+	}
 }
