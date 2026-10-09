@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $dir = Split-Path -Parent $PSCommandPath
 $hwid = 'root\sudomaker\sudovda'
 $class = '4D36E968-E325-11CE-BFC1-08002BE10318'
-$cer = Join-Path $dir 'spigot-driver.cer'
+$cer = Join-Path $dir 'spout-driver.cer'
 $nef = Join-Path $dir 'nefconc.exe'
 
 & $nef --remove-device-node --hardware-id $hwid --class-guid $class | Out-Null

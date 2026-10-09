@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/justjoseorg/SpigotRemotePlayHost/internal/config"
-	"github.com/justjoseorg/SpigotRemotePlayHost/internal/display"
-	"github.com/justjoseorg/SpigotRemotePlayHost/internal/hotkey"
-	"github.com/justjoseorg/SpigotRemotePlayHost/internal/server"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/hotkey"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/server"
 )
 
 // version is set at build time via -ldflags.
@@ -57,7 +57,7 @@ func main() {
 	}()
 
 	handler := server.New(store, disp, version, token)
-	fmt.Printf("spigot-host %s: UI at http://%s\n", version, *addr)
+	fmt.Printf("spout-host %s: UI at http://%s\n", version, *addr)
 	if err := http.ListenAndServe(*addr, handler); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

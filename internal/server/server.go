@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/justjoseorg/SpigotRemotePlayHost/internal/config"
-	"github.com/justjoseorg/SpigotRemotePlayHost/internal/display"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 )
 
 //go:embed web

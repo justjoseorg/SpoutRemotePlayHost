@@ -101,7 +101,7 @@ func DefaultPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "SpigotRemotePlayHost", "config.json"), nil
+	return filepath.Join(dir, "SpoutRemotePlayHost", "config.json"), nil
 }
 
 // LoadOrCreateToken returns the API token stored next to the config, creating it on first use.

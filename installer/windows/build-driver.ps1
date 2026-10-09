@@ -1,6 +1,6 @@
 # Builds SudoVDA from source and signs it with a self-signed certificate.
 # Run on a Windows machine with Visual Studio (MSVC + MSBuild) and the WDK.
-# Output: <OutDir>\SudoVDA.{dll,inf,cat} and spigot-driver.cer
+# Output: <OutDir>\SudoVDA.{dll,inf,cat} and spout-driver.cer
 param(
     [Parameter(Mandatory = $true)][string]$OutDir,
     [string]$PfxPath,
@@ -28,10 +28,10 @@ if ($PfxPath) {
     $pwd = ConvertTo-SecureString $PfxPassword -AsPlainText -Force
     $cert = Import-PfxCertificate -FilePath $PfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $pwd
 } else {
-    $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=SpigotRemotePlayHost driver' `
+    $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=SpoutRemotePlayHost driver' `
         -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(5)
 }
-Export-Certificate -Cert $cert -FilePath (Join-Path $OutDir 'spigot-driver.cer') | Out-Null
+Export-Certificate -Cert $cert -FilePath (Join-Path $OutDir 'spout-driver.cer') | Out-Null
 
 & Inf2Cat.exe /driver:$OutDir /os:10_X64
 if ($LASTEXITCODE) { throw 'Inf2Cat failed' }

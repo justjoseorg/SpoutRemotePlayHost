@@ -140,8 +140,8 @@ func (s *sudovda) create(m Mode) error {
 		return err
 	}
 	p := addParams{Width: uint32(m.Width), Height: uint32(m.Height), RefreshRate: uint32(m.RefreshHz), MonitorGUID: guid}
-	copy(p.DeviceName[:13], "SpigotRemote")
-	copy(p.SerialNumber[:13], "SPIGOT0001")
+	copy(p.DeviceName[:13], "SpoutRemote")
+	copy(p.SerialNumber[:13], "SPOUT0001")
 	var out addOut
 	if err := ioctl(h, ioctlAddDisplay, unsafe.Pointer(&p), unsafe.Pointer(&out), uint32(unsafe.Sizeof(p)), uint32(unsafe.Sizeof(out))); err != nil {
 		windows.CloseHandle(h)

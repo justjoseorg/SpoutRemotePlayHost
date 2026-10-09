@@ -1,4 +1,4 @@
-module github.com/justjoseorg/SpigotRemotePlayHost
+module github.com/justjoseorg/SpoutRemotePlayHost
 
 go 1.23
 

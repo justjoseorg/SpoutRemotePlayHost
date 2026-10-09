@@ -1,8 +1,8 @@
 [Unit]
-Description=SpigotRemotePlayHost
+Description=SpoutRemotePlayHost
 
 [Service]
-ExecStart=%h/.local/bin/spigot-host
+ExecStart=%h/.local/bin/spout-host
 Restart=on-failure
 
 [Install]

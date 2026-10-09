@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/justjoseorg/SpigotRemotePlayHost/internal/config"
-	"github.com/justjoseorg/SpigotRemotePlayHost/internal/display"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 )
 
 func setup(t *testing.T) (http.Handler, string) {
@@ -58,7 +58,7 @@ func TestCreateNotImplementedAndUI(t *testing.T) {
 	if r := do(h, "POST", "/api/monitor/create", ""); r.Code != 501 {
 		t.Errorf("create: want 501 got %d", r.Code)
 	}
-	if r := do(h, "GET", "/", ""); r.Code != 200 || !strings.Contains(r.Body.String(), "SpigotRemotePlayHost") {
+	if r := do(h, "GET", "/", ""); r.Code != 200 || !strings.Contains(r.Body.String(), "SpoutRemotePlayHost") {
 		t.Errorf("ui not served: %d", r.Code)
 	}
 }

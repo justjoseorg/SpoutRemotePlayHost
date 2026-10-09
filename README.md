@@ -1,6 +1,6 @@
-# SpigotRemotePlay Host
+# SpoutRemotePlay Host
 
-Host-side app for the [SpigotRemotePlay](https://github.com/justjoseorg/SpigotRemotePlay) Decky plugin. Targets Windows and Linux (x86_64).
+Host-side app for the [SpoutRemotePlay](https://github.com/justjoseorg/SpoutRemotePlay) Decky plugin. Targets Windows and Linux (x86_64).
 
 Supported architecture: x86_64 only (Windows and Linux); no ARM builds.
 
@@ -21,14 +21,14 @@ Nothing here has been run on a Windows machine yet.
 
 ## Install
 
-- **Windows:** run `SpigotRemotePlayHost-Setup-vX.Y.Z.exe` from Releases. The optional "SudoVDA virtual display driver" component is built from [SudoMaker/SudoVDA](https://github.com/SudoMaker/SudoVDA) (MIT) in CI and signed with a self-signed certificate; installing it adds that certificate to the Windows Trusted Root and Trusted Publishers stores (removed on uninstall). Untested.
-- **Linux:** extract `spigot-host-vX.Y.Z-linux-amd64.tar.gz` and run `./install.sh` (user systemd service; `--uninstall` removes it). No virtual display driver is installed because there is no Linux backend yet.
+- **Windows:** run `SpoutRemotePlayHost-Setup-vX.Y.Z.exe` from Releases. The optional "SudoVDA virtual display driver" component is built from [SudoMaker/SudoVDA](https://github.com/SudoMaker/SudoVDA) (MIT) in CI and signed with a self-signed certificate; installing it adds that certificate to the Windows Trusted Root and Trusted Publishers stores (removed on uninstall). Untested.
+- **Linux:** extract `spout-host-vX.Y.Z-linux-amd64.tar.gz` and run `./install.sh` (user systemd service; `--uninstall` removes it). No virtual display driver is installed because there is no Linux backend yet.
 
 ## Build
 
 ```bash
-go build ./cmd/spigot-host
-GOOS=windows GOARCH=amd64 go build ./cmd/spigot-host
+go build ./cmd/spout-host
+GOOS=windows GOARCH=amd64 go build ./cmd/spout-host
 ```
 
 ## Releases

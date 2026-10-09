@@ -47,17 +47,17 @@ jobs:
           for os in windows linux; do
             ext=""; [ $os = windows ] && ext=".exe"
             GOOS=$os GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
-              -ldflags "-s -w -X main.version=${VERSION}" -o "dist/spigot-host-${os}-amd64${ext}" ./cmd/spigot-host
+              -ldflags "-s -w -X main.version=${VERSION}" -o "dist/spout-host-${os}-amd64${ext}" ./cmd/spout-host
           done
-          cp dist/spigot-host-linux-amd64 pkg/spigot-host
-          cp installer/linux/install.sh installer/linux/spigot-host.service pkg/
-          tar -C pkg -czf "dist/spigot-host-v${VERSION}-linux-amd64.tar.gz" .
+          cp dist/spout-host-linux-amd64 pkg/spout-host
+          cp installer/linux/install.sh installer/linux/spout-host.service pkg/
+          tar -C pkg -czf "dist/spout-host-v${VERSION}-linux-amd64.tar.gz" .
       - uses: actions/upload-artifact@v4
         with:
           name: linux
           path: |
-            dist/spigot-host-windows-amd64.exe
-            dist/spigot-host-v*-linux-amd64.tar.gz
+            dist/spout-host-windows-amd64.exe
+            dist/spout-host-v*-linux-amd64.tar.gz
 
   windows-installer:
     needs: [version, linux]
@@ -87,12 +87,12 @@ jobs:
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          Copy-Item artifacts\spigot-host-windows-amd64.exe dist\spigot-host.exe
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" "/DAppVersion=$env:VERSION" "/DHostExe=..\..\dist\spigot-host.exe" "/DDriverDir=..\..\dist\driver" installer\windows\spigot-host.iss
+          Copy-Item artifacts\spout-host-windows-amd64.exe dist\spout-host.exe
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" "/DAppVersion=$env:VERSION" "/DHostExe=..\..\dist\spout-host.exe" "/DDriverDir=..\..\dist\driver" installer\windows\spout-host.iss
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: dist/SpigotRemotePlayHost-Setup-v*.exe
+          path: dist/SpoutRemotePlayHost-Setup-v*.exe
 
   publish:
     needs: [version, linux, windows-installer]
@@ -107,7 +107,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          mv artifacts/spigot-host-windows-amd64.exe "artifacts/spigot-host-v${VERSION}-windows-amd64.exe"
+          mv artifacts/spout-host-windows-amd64.exe "artifacts/spout-host-v${VERSION}-windows-amd64.exe"
           gh release create "v${VERSION}" artifacts/* --repo "${{ github.repository }}" \
             --target "${{ github.event.pull_request.merge_commit_sha }}" \
             --title "v${VERSION}" \
