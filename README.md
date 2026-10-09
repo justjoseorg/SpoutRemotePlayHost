@@ -8,7 +8,7 @@ Supported architecture: x86_64 only (Windows and Linux); no ARM builds.
 
 **Pick up your handheld, press play on a game from your PC, and go.**
 
-This is an integrated solution with a narrow purpose: **the virtual monitor, integrated with Steam's native Remote Play.** It does not stream anything itself and does not replace Steam. Steam keeps doing the streaming (capture, encode, input, Steam Link on the handheld); this app only watches for a Remote Play session and gives it a dedicated virtual monitor matching the connecting device (its resolution, refresh rate and codec), then removes it when the session ends. While the session runs the virtual monitor is the primary display, so Steam streams it. On Windows every other display is turned off during the session, except the ones ticked under Monitor config → "Displays during a session"; the previous layout is restored when it ends. Linux doesn't turn displays off yet.
+This is an integrated solution with a narrow purpose: **the virtual monitor, integrated with Steam's native Remote Play.** It does not stream anything itself and does not replace Steam. Steam keeps doing the streaming (capture, encode, input, Steam Link on the handheld); this app only watches for a Remote Play session and gives it a dedicated virtual monitor matching the connecting device (its resolution and refresh rate), then removes it when the session ends. While the session runs the virtual monitor is the primary display, so Steam streams it. On Windows every other display is turned off during the session, except the ones ticked under Monitor config → "Displays during a session"; the previous layout is restored when it ends. Linux doesn't turn displays off yet.
 
 Pair each device once, give it its own monitor settings, and from then on it just works. Together with the [Decky plugin](https://github.com/justjoseorg/SpoutRemotePlay) (Wake-on-LAN, pairing, settings), the flow is: wake the PC, press play in Steam, stream.
 
@@ -25,9 +25,9 @@ Only **paired** devices get a virtual monitor, on every platform: a session from
 
 On Windows, the standalone host exe has been run on one PC (Windows 11, ArtLight installed): the web UI works and it created and removed a virtual monitor through ArtLight's SudoVDA driver. The Setup installer has not been run yet.
 
-- Web UI and API (`127.0.0.1:47995`): dark UI with a Devices tab (each paired device has its own resolution, refresh, codec and capabilities) and a Monitor defaults tab (default 1920x1080@60). Works and has tests. To let the Decky plugin connect, start with `-listen 0.0.0.0:47995`; non-loopback requests must send a bearer token: the API token (printed at startup, stored in `token` next to `config.json`) or a per-device token from pairing. Cross-origin browser writes are rejected.
+- Web UI and API (`127.0.0.1:47995`): dark UI with a Devices tab (each paired device has its own resolution and refresh) and a Monitor defaults tab (default 1920x1080@60). Works and has tests. To let the Decky plugin connect, start with `-listen 0.0.0.0:47995`; non-loopback requests must send a bearer token: the API token (printed at startup, stored in `token` next to `config.json`) or a per-device token from pairing. Cross-origin browser writes are rejected.
 - Session detection: verified end to end on Linux (plugin signal and log watcher both reached the host). The resulting monitor creation on Linux is not yet verified, because the driver install is still being tested. Not run on Windows.
-- Codec preference is only a stored hint: Steam Remote Play negotiates the real codec itself, and PyroWave is not available with Steam streaming.
+- There is no codec setting: Steam Remote Play negotiates the codec itself, and PyroWave is not available with Steam streaming.
 - Windows backend: talks to the [SudoVDA](https://github.com/SudoMaker/SudoVDA) virtual display driver (same driver ArtLight uses) over its IOCTL protocol, including the watchdog ping. Built and signed in CI. Creating/removing a monitor is verified against an existing SudoVDA 1.10.9 (installed by ArtLight), unelevated, including making it primary, turning the other displays off (with an allowlist) and restoring the layout on removal (Windows CCD API, nothing saved to the display database); our own driver build is untested on a machine.
 - Linux backend: uses the `vibeshine_drm` kernel module (the driver ArtLight uses, built via DKMS) and `kscreen-doctor`, so it needs KDE Plasma on Wayland and Linux 6.16+. Unit-tested; not yet run on hardware.
 - Hotkey: Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) removes the virtual monitor. Windows only (`RegisterHotKey`); compiles, untested. Restoring physical monitors is not implemented yet.
@@ -61,6 +61,7 @@ The **Apps** tab of the web UI adds programs to this PC's Steam library (as non-
 
 - Steam is controlled through its local debug port. Click **Enable Steam integration** once, then restart Steam.
 - Adding, removing and deleting apps works only from this PC (loopback), because it runs programs on the host. Paired devices can only read the list.
+- Optional: save a free [SteamGridDB](https://www.steamgriddb.com/profile/preferences/api) API key in the Apps tab and new shortcuts get a matching cover, hero, logo and icon. Setting artwork on Steam is verified on Linux; the SteamGridDB lookup itself is only unit tested against a fake server.
 - Verified on Linux Steam: add and remove show up in the library. Whether the Steam Link client lists them is not yet verified.
 
 ## Pairing

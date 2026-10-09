@@ -18,7 +18,7 @@ type Monitor struct {
 	RefreshHz int `json:"refreshHz"`
 	// AutoCreate creates the monitor when a Remote Play session starts.
 	AutoCreate bool `json:"autoCreate"`
-	// Codec is a preference hint (auto, h264, hevc, av1); Steam Remote Play negotiates the real codec itself.
+	// Codec is unused (Steam negotiates the real codec); kept so older clients that send it still work.
 	Codec string `json:"codec"`
 }
 
@@ -28,7 +28,7 @@ func Default() Monitor {
 
 func (m Monitor) Validate() error {
 	switch {
-	case m.Codec != "auto" && m.Codec != "h264" && m.Codec != "hevc" && m.Codec != "av1":
+	case m.Codec != "" && m.Codec != "auto" && m.Codec != "h264" && m.Codec != "hevc" && m.Codec != "av1":
 		return fmt.Errorf("codec must be auto, h264, hevc or av1, got %q", m.Codec)
 	case m.Width < 640 || m.Width > 7680:
 		return fmt.Errorf("width must be 640-7680, got %d", m.Width)

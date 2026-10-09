@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/apps"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/artwork"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/hotkey"
@@ -106,7 +107,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv := server.NewServer(store, disp, version, token, pair).WithApps(catalog, steamlib.NewCEF())
+	srv := server.NewServer(store, disp, version, token, pair).WithApps(catalog, steamlib.NewCEF()).
+		WithArtwork(artwork.Open(filepath.Join(filepath.Dir(*cfgPath), "steamgriddb.key")))
 	handler := srv.Handler()
 	go steamlog.Watch(steamlog.Candidates(), time.Second, stop, func(ev steamlog.Event) {
 		if !ev.Start {

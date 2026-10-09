@@ -62,8 +62,6 @@
       <label>Height <input type="number" name="height"></label>
       <label>Refresh (Hz) <input type="number" name="refreshHz"></label>
     </div>
-    <label>Codec preference (hint only; Steam picks the real codec)
-      <select name="codec"><option value="auto">Auto</option><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="av1">AV1</option></select></label>
     <label class="check"><input type="checkbox" name="autoCreate"> Create automatically when a Remote Play session starts</label>
     <button type="submit">Save</button>
     <button type="button" id="create" class="primary">Create monitor</button>
@@ -77,6 +75,7 @@
   <h2>Apps in Steam</h2>
   <p><small>Programs added here appear in this PC's Steam library, so your paired devices can stream them.</small></p>
   <div id="steamnote"></div>
+  <div id="artnote"></div>
   <div id="apps"></div>
   <form id="appform">
     <div class="row">
@@ -109,7 +108,6 @@ async function load() {
   const c = await api("GET", "/api/config");
   for (const k of ["width", "height", "refreshHz"]) $("#f")[k].value = c[k];
   $("#f").autoCreate.checked = c.autoCreate;
-  $("#f").codec.value = c.codec;
   const s = await api("GET", "/api/status");
   $("#pill").textContent = s.monitorActive ? "Monitor active" : "Monitor inactive";
   $("#pill").classList.toggle("on", s.monitorActive);
@@ -121,7 +119,7 @@ $("#f").onsubmit = async (e) => {
   try {
     await api("PUT", "/api/config", {
       width: +f.width.value, height: +f.height.value,
-      refreshHz: +f.refreshHz.value, codec: f.codec.value, autoCreate: f.autoCreate.checked,
+      refreshHz: +f.refreshHz.value, autoCreate: f.autoCreate.checked,
     });
     msg("Saved");
   } catch (err) { msg(err.message); }
@@ -173,18 +171,12 @@ function monitorForm(cfg, c, onSave) {
   };
   const row = el("div", "", { className: "row" });
   row.append(num("width", "Width"), num("height", "Height"), num("refreshHz", "Refresh (Hz)"));
-  const sel = el("select", "", { name: "codec" });
-  const k = c.caps || {};
-  const ok = (v) => v === "auto" || v === "h264" || (v === "hevc" && k.hevc) || (v === "av1" && k.av1) || v === cfg.codec;
-  for (const [v, t] of [["auto", "Auto"], ["h264", "H.264"], ["hevc", "HEVC"], ["av1", "AV1"]])
-    if (ok(v)) sel.append(el("option", t, { value: v, selected: v === cfg.codec }));
-  const cl = el("label", "Codec preference (hint only; Steam picks the real codec) "); cl.append(sel);
   const auto = el("input", "", { type: "checkbox", name: "autoCreate", checked: cfg.autoCreate });
   const al = el("label", "", { className: "check" }); al.append(auto, " Create automatically when a Remote Play session starts");
-  f.append(row, cl, al, el("button", "Save custom monitor", { type: "submit" }));
+  f.append(row, al, el("button", "Save custom monitor", { type: "submit" }));
   f.onsubmit = (e) => { e.preventDefault(); onSave({
     width: +f.width.value, height: +f.height.value, refreshHz: +f.refreshHz.value,
-    codec: sel.value, autoCreate: auto.checked }); };
+    autoCreate: auto.checked }); };
   return f;
 }
 async function refreshClients() {
@@ -255,6 +247,15 @@ function renderApps(r) {
         catch (err) { msg(err.message); } } }));
     note.replaceChildren(card);
   }
+  const art = $("#artnote");
+  if (r.artwork) art.replaceChildren(el("small", "Artwork from SteamGridDB is on."));
+  else {
+    const key = el("input", "", { placeholder: "SteamGridDB API key", type: "password" });
+    const save = el("button", "Save key", { onclick: async () => {
+      try { renderApps(await api("PUT", "/api/steam/artwork-key", { key: key.value })); msg("Saved"); }
+      catch (err) { msg(err.message); } } });
+    art.replaceChildren(el("small", "Optional: a free SteamGridDB API key (steamgriddb.com/profile/preferences/api) fetches icons and covers."), key, save);
+  }
   const cards = r.apps.map((a) => {
     const card = el("div", "", { className: "card" });
     card.append(el("span", a.name, { className: "name" }),
@@ -264,6 +265,7 @@ function renderApps(r) {
     const act = async (method, path) => {
       try { renderApps(await api(method, path)); } catch (err) { msg(err.message); refreshApps(); }
     };
+    if (a.inSteam && r.artwork) card.append(el("button", "Refresh artwork", { onclick: () => act("POST", "/api/apps/" + a.id + "/artwork") }));
     card.append(a.inSteam
       ? el("button", "Remove from Steam", { onclick: () => act("DELETE", "/api/apps/" + a.id + "/steam") })
       : el("button", "Add to Steam", { className: "primary", onclick: () => act("POST", "/api/apps/" + a.id + "/steam") }),
