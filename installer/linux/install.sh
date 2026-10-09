@@ -103,7 +103,12 @@ install_driver() {
   if [[ "$build_for" != "$kver" ]]; then
     warn "REBOOT into kernel $build_for to enable the virtual display (the host works now; the monitor will appear after the reboot)."
   elif ! sudo modprobe vibeshine_drm create_default_dev=0; then
-    warn "driver built but could not be loaded. With Secure Boot enabled, enroll the DKMS key (sudo mokutil --import /var/lib/dkms/mok.pub) and reboot."
+    if command -v mokutil >/dev/null && mokutil --sb-state 2>/dev/null | grep -qi enabled; then
+      warn "Secure Boot rejected the driver's signing key. One-time setup: choose a password now, reboot, then pick Enroll MOK > Continue > Yes and enter it."
+      sudo mokutil --import /var/lib/dkms/mok.pub || warn "key enrollment failed; run: sudo mokutil --import /var/lib/dkms/mok.pub"
+    else
+      warn "driver built but could not be loaded (modprobe failed); check dmesg."
+    fi
     return 1
   else
     say "Virtual display driver loaded"
