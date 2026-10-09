@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -31,23 +33,43 @@ func main() {
 	addr := flag.String("listen", "127.0.0.1:47995", "address for the web UI/API (use 0.0.0.0:47995 so the Decky plugin can reach it; non-local requests need the token)")
 	cfgPath := flag.String("config", "", "config file path (default: user config dir)")
 	noTray := flag.Bool("no-tray", false, "do not show the system tray icon")
+	background := flag.Bool("background", false, "do not open the web UI at startup (Windows opens it when launched by hand)")
 	flag.Parse()
 
 	if *cfgPath == "" {
 		p, err := config.DefaultPath()
 		if err != nil {
-			log.Fatal(err)
+			fatal(err)
 		}
 		*cfgPath = p
 	}
+	setupLog(filepath.Dir(*cfgPath))
+	log.Printf("spout-host %s starting (listen %s)", version, *addr)
+	_, port, _ := net.SplitHostPort(*addr)
+	uiURL := "http://127.0.0.1:" + port + "/"
+
+	ln, err := net.Listen("tcp", *addr)
+	if err != nil {
+		// Launching it again while it already runs (e.g. from the logon task) just shows the UI.
+		if alreadyRunning(uiURL) {
+			if *background {
+				return
+			}
+			log.Println("already running; opening", uiURL)
+			tray.OpenURL(uiURL)
+			return
+		}
+		fatal(fmt.Errorf("listen on %s: %w", *addr, err))
+	}
+
 	store, err := config.Open(*cfgPath)
 	if err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 
 	token, err := config.LoadOrCreateToken(*cfgPath)
 	if err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 	fmt.Println("API token for the Decky plugin / remote access:", token)
 
@@ -55,10 +77,9 @@ func main() {
 
 	pair, err := pairing.New(filepath.Join(filepath.Dir(*cfgPath), "paired.json"), notify.Send)
 	if err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
-	_, port, _ := net.SplitHostPort(*addr)
-	pair.URL = "http://127.0.0.1:" + port + "/"
+	pair.URL = uiURL
 
 	stop := make(chan struct{})
 	defer close(stop)
@@ -97,17 +118,33 @@ func main() {
 		}
 	})
 	fmt.Printf("spout-host %s: UI at http://%s\n", version, *addr)
+	if runtime.GOOS == "windows" && !*background {
+		tray.OpenURL(pair.URL)
+	}
 	if *noTray {
-		serve(*addr, handler)
+		serve(ln, handler)
 		return
 	}
-	go serve(*addr, handler)
+	go serve(ln, handler)
 	tray.Run(pair.URL, version, func() { os.Exit(0) })
 }
 
-func serve(addr string, h http.Handler) {
-	if err := http.ListenAndServe(addr, h); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func serve(ln net.Listener, h http.Handler) {
+	if err := http.Serve(ln, h); err != nil {
+		fatal(err)
 	}
+}
+
+// alreadyRunning reports whether another spout-host answers at url.
+func alreadyRunning(url string) bool {
+	c := http.Client{Timeout: 2 * time.Second}
+	resp, err := c.Get(url + "api/status")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	var st struct {
+		Version *string `json:"version"`
+	}
+	return resp.StatusCode == http.StatusOK && json.NewDecoder(resp.Body).Decode(&st) == nil && st.Version != nil
 }

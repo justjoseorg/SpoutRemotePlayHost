@@ -16,7 +16,8 @@ var iconPNG []byte
 //go:embed icon.ico
 var iconICO []byte
 
-func openURL(url string) {
+// OpenURL opens url in the default browser.
+func OpenURL(url string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
@@ -43,7 +44,7 @@ func Run(url, version string, onQuit func()) {
 		}
 		systray.SetTitle("Spout Remote Play Host")
 		systray.SetTooltip("Spout Remote Play Host")
-		systray.SetOnTapped(func() { openURL(url) })
+		systray.SetOnTapped(func() { OpenURL(url) })
 
 		open := systray.AddMenuItem("Open Spout Remote Play Host", "Open the web UI")
 		systray.AddSeparator()
@@ -54,7 +55,7 @@ func Run(url, version string, onQuit func()) {
 			for {
 				select {
 				case <-open.ClickedCh:
-					openURL(url)
+					OpenURL(url)
 				case <-quit.ClickedCh:
 					systray.Quit()
 					return

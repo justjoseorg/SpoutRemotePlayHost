@@ -23,19 +23,23 @@ The monitor is created from that device's config (or the defaults), is kept acro
 
 ## Status
 
-Nothing here has been run on a Windows machine yet.
+On Windows, the standalone host exe has been run on one PC (Windows 11, ArtLight installed): the web UI works and it created and removed a virtual monitor through ArtLight's SudoVDA driver. The Setup installer has not been run yet.
 
 - Web UI and API (`127.0.0.1:47995`): dark UI with a Devices tab (each paired device has its own resolution, refresh, codec and capabilities) and a Monitor defaults tab (default 1920x1080@60). Works and has tests. To let the Decky plugin connect, start with `-listen 0.0.0.0:47995`; non-loopback requests must send a bearer token: the API token (printed at startup, stored in `token` next to `config.json`) or a per-device token from pairing. Cross-origin browser writes are rejected.
 - Session detection: verified end to end on Linux (plugin signal and log watcher both reached the host). The resulting monitor creation on Linux is not yet verified, because the driver install is still being tested. Not run on Windows.
 - Codec preference is only a stored hint: Steam Remote Play negotiates the real codec itself, and PyroWave is not available with Steam streaming.
-- Windows backend: talks to the [SudoVDA](https://github.com/SudoMaker/SudoVDA) virtual display driver (same driver ArtLight uses) over its IOCTL protocol, including the watchdog ping. Built and signed in CI; untested on a machine.
+- Windows backend: talks to the [SudoVDA](https://github.com/SudoMaker/SudoVDA) virtual display driver (same driver ArtLight uses) over its IOCTL protocol, including the watchdog ping. Built and signed in CI. Creating/removing a monitor is verified against an existing SudoVDA 1.10.9 (installed by ArtLight), unelevated; our own driver build is untested on a machine.
 - Linux backend: uses the `vibeshine_drm` kernel module (the driver ArtLight uses, built via DKMS) and `kscreen-doctor`, so it needs KDE Plasma on Wayland and Linux 6.16+. Unit-tested; not yet run on hardware.
 - Hotkey: Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) removes the virtual monitor. Windows only (`RegisterHotKey`); compiles, untested. Restoring physical monitors is not implemented yet.
 - Tray icon (Windows and Linux): click it, or choose "Open Spout Remote Play Host", to open the web UI. Run with `-no-tray` to disable. Linux needs a StatusNotifier-capable panel (KDE has one; GNOME needs the AppIndicator extension). Verified to register on KDE only; the Windows tray is untested.
 
 ## Install
 
-- **Windows:** run `SpoutRemotePlayHost-Setup-vX.Y.Z.exe` from Releases. The optional "SudoVDA virtual display driver" component is built from [SudoMaker/SudoVDA](https://github.com/SudoMaker/SudoVDA) (MIT) in CI and signed with a self-signed certificate; installing it adds that certificate to the Windows Trusted Root and Trusted Publishers stores (removed on uninstall). Untested.
+- **Windows:** run `SpoutRemotePlayHost-Setup-vX.Y.Z.exe` from Releases (not the bare `spout-host-*-windows-amd64.exe`, which is a portable build without driver or autostart). The installer has these options:
+  - **SudoVDA virtual display driver** component: if a SudoVDA is already installed (e.g. by [ArtLight](https://github.com/onaiaku/ArtLight) or Apollo) it is reused and left untouched, so both apps work side by side, and uninstalling SpoutRemotePlayHost never removes it. Otherwise it installs a SudoVDA built from [SudoMaker/SudoVDA](https://github.com/SudoMaker/SudoVDA) (MIT) in CI and signed with a self-signed certificate, which is added to the Windows Trusted Root and Trusted Publishers stores; that driver and certificate are removed on uninstall unless another app has replaced the driver since. Untick it to install the host only.
+  - **Start automatically when I sign in**: a logon task runs the host (`-background`), also on battery and without a time limit.
+  - **Allow the Decky plugin to connect over the local network**: the host listens on `0.0.0.0:47995` and a firewall rule allows it on private/domain networks (requests from other machines still need a token).
+  Launching the host while it already runs just opens its web UI; launched by hand it opens the UI at startup. Since the exe has no console, errors are shown in a message box and logged to `%APPDATA%\SpoutRemotePlayHost\spout-host.log`. If another app already registered Ctrl+Alt+Shift+Q, the hotkey is disabled (logged) and the host runs normally. The installer is untested.
 - **Linux:** extract `spout-host-vX.Y.Z-linux-amd64.tar.gz` and run `./install.sh` (user systemd service; `--uninstall` removes it). It also sets up the driver with DKMS: it installs `dkms` and kernel headers for you (Fedora/Arch/Debian/Ubuntu/openSUSE), and on Fedora it fetches headers for the exact running kernel from Koji so no reboot is needed (only as a last resort does it build for the newest installed kernel and ask for a reboot). It needs sudo and a sudoers rule limited to `/usr/local/libexec/spout-vdisplay`; pass `--no-driver` to skip.
 
 ## Build
@@ -47,7 +51,7 @@ GOOS=windows GOARCH=amd64 go build ./cmd/spout-host
 
 ## Releases
 
-Windows: download `SpoutRemotePlayHost-Setup-v*.exe` from the latest release. It installs the host, the SudoVDA virtual display driver and a tray icon. Linux: `spout-host-v*-linux-amd64.tar.gz` (run `install.sh`).
+Windows: download `SpoutRemotePlayHost-Setup-v*.exe` from the latest release. It installs the host and a tray icon, and the SudoVDA virtual display driver unless one is already installed (see Install). Linux: `spout-host-v*-linux-amd64.tar.gz` (run `install.sh`).
 
 Merging a PR into `main` publishes a release automatically. `MAJOR.MINOR` is set by hand in the `VERSION` file; the patch number is auto-incremented per merge (e.g. `0.1.0`, `0.1.1`, ...). Edit `VERSION` in a PR to start a new minor/major. Add the `no-release` label to a PR to skip releasing.
 
