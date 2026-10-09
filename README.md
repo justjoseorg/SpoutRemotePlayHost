@@ -100,6 +100,7 @@ Extract `spout-host-vX.Y.Z-linux-amd64.tar.gz` and run `./install.sh` (user syst
 - It installs `dkms` and kernel headers for you (Fedora/Arch/Debian/Ubuntu/openSUSE).
 - On Fedora it fetches headers for the exact running kernel from Koji, so no reboot is needed (only as a last resort does it build for the newest installed kernel and ask for a reboot).
 - It needs sudo and a sudoers rule limited to `/usr/local/libexec/spout-vdisplay`; pass `--no-driver` to skip.
+- The service listens on `0.0.0.0:47995` so the Decky plugin can reach it (requests from other machines still need a token).
 
 The Linux backend uses the `vibeshine_drm` kernel module (the driver ArtLight uses) and `kscreen-doctor`, so it needs **KDE Plasma on Wayland** and **Linux 6.16+**.
 
