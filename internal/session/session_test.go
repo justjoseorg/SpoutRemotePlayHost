@@ -43,17 +43,28 @@ func TestStartUsesDeviceConfigAndIsIdempotent(t *testing.T) {
 	if ok, _ := c.Start("dev"); ok || f.creates != 1 {
 		t.Fatal("same session should not recreate the monitor")
 	}
-	if ok, _ := c.Start(""); !ok || f.last != (display.Mode{Width: 1920, Height: 1080, RefreshHz: 60}) || f.creates != 2 {
+	if ok, _ := c.Start("other"); !ok || f.last != (display.Mode{Width: 1920, Height: 1080, RefreshHz: 60}) || f.creates != 2 {
 		t.Fatalf("different device should switch: %+v", f.last)
+	}
+}
+
+func TestStartIgnoresUnpairedClients(t *testing.T) {
+	c, f, _ := setup(t)
+	if ok, err := c.Start(""); ok || err != nil || f.creates != 0 {
+		t.Fatalf("unpaired client must not get a monitor: %v %v %+v", ok, err, f)
+	}
+	c.Start("a")
+	if ok, _ := c.Start(""); ok || f.creates != 1 || !c.OwnedBy("a") {
+		t.Fatalf("unpaired client must not replace a paired device's monitor: %+v", f)
 	}
 }
 
 func TestStartRespectsAutoCreateOff(t *testing.T) {
 	c, f, st := setup(t)
-	m := st.GetFor("")
+	m := st.GetFor("dev")
 	m.AutoCreate = false
-	st.SetFor("", m)
-	if ok, _ := c.Start(""); ok || f.active {
+	st.SetFor("dev", m)
+	if ok, _ := c.Start("dev"); ok || f.active {
 		t.Fatal("autoCreate off must not create")
 	}
 }

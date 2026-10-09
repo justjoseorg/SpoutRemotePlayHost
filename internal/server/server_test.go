@@ -340,10 +340,23 @@ func TestSessionStartStop(t *testing.T) {
 	srv := NewServer(store, fd, "test", "tok", mustPair(t))
 	srv.Sessions().Grace = 0
 	h := srv.Handler()
-	if r := do(h, "POST", "/api/session", `{"state":"start"}`); r.Code != 200 || !fd.active || len(fd.modes) != 1 {
+	if r := do(h, "POST", "/api/session", `{"state":"start"}`); r.Code != 200 || fd.active {
+		t.Fatalf("unpaired start must not create: %d active=%v", r.Code, fd.active)
+	}
+	const remote = "192.168.1.50:5555"
+	salt, pin, secret := "saltsalt1234", "0427", "client-secret"
+	reqBody := `{"name":"Deck","salt":"` + salt + `","pinHash":"` + pairing.PINHash(salt, pin) +
+		`","secretHash":"` + pairing.SecretHash(secret) + `"}`
+	var rq struct{ ID string }
+	_ = json.Unmarshal(doFrom(h, remote, "POST", "/api/pair/request", reqBody, "").Body.Bytes(), &rq)
+	doFrom(h, "127.0.0.1:1", "POST", "/api/pair/confirm", `{"id":"`+rq.ID+`","pin":"`+pin+`"}`, "")
+	var pr struct{ Token string }
+	_ = json.Unmarshal(doFrom(h, remote, "POST", "/api/pair/poll", `{"id":"`+rq.ID+`","secret":"`+secret+`"}`, "").Body.Bytes(), &pr)
+	auth := "Bearer " + pr.Token
+	if r := doFrom(h, remote, "POST", "/api/session", `{"state":"start"}`, auth); r.Code != 200 || !fd.active || len(fd.modes) != 1 {
 		t.Fatalf("start: %d active=%v", r.Code, fd.active)
 	}
-	if r := do(h, "POST", "/api/session", `{"state":"stop"}`); r.Code != 200 || fd.active {
+	if r := doFrom(h, remote, "POST", "/api/session", `{"state":"stop"}`, auth); r.Code != 200 || fd.active {
 		t.Fatalf("stop: %d active=%v", r.Code, fd.active)
 	}
 	if r := do(h, "POST", "/api/session", `{"state":"nope"}`); r.Code != 400 {

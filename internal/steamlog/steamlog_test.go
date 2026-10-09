@@ -15,6 +15,9 @@ func TestParse(t *testing.T) {
 	if ev, ok := Parse("[x][y] PipeWire: Deinitializing streaming"); !ok || ev.Start {
 		t.Fatal("stop not detected")
 	}
+	if ev, ok := Parse("[2026-10-09 13:22:47][1302.826617] Encoding complete"); !ok || ev.Start {
+		t.Fatal("Windows stop not detected")
+	}
 	if _, ok := Parse(">>> Stopped desktop stream"); ok {
 		t.Fatal("desktop stream restarts are not session ends")
 	}

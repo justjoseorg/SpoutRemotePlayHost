@@ -3,7 +3,9 @@
 package display
 
 import (
+	"encoding/binary"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 	"unsafe"
@@ -150,6 +152,13 @@ func (s *sudovda) create(m Mode) error {
 
 	s.handle, s.guid, s.stop = h, guid, make(chan struct{})
 	go s.keepAlive(h, s.stop)
+
+	// Steam streams the primary display. The layout isn't saved, so Windows restores the
+	// previous one when the virtual display is removed.
+	adapter := luid{Low: binary.LittleEndian.Uint32(out.AdapterLUID[:4]), High: int32(binary.LittleEndian.Uint32(out.AdapterLUID[4:]))}
+	if err := makePrimary(adapter, out.TargetID); err != nil {
+		log.Println("virtual display created but not made primary:", err)
+	}
 	return nil
 }
 

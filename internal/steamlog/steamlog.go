@@ -17,8 +17,9 @@ type Event struct {
 
 var (
 	startRe = regexp.MustCompile(`Streaming started to (.+?) at \S+:\d+`)
-	// Steam on Linux tears down its PipeWire capture when a session ends.
-	stopRe = regexp.MustCompile(`PipeWire: Deinitializing streaming`)
+	// Steam on Linux tears down its PipeWire capture when a session ends; on Windows it logs
+	// "Encoding complete" once, when the session's encoder shuts down.
+	stopRe = regexp.MustCompile(`PipeWire: Deinitializing streaming|\] Encoding complete\s*$`)
 )
 
 // Parse maps one log line to an event.
