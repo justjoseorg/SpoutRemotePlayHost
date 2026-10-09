@@ -2,6 +2,8 @@
 
 Host-side app for the [SpigotRemotePlay](https://github.com/justjoseorg/SpigotRemotePlay) Decky plugin. Targets Windows and Linux (x86_64).
 
+Supported architecture: x86_64 only (Windows and Linux); no ARM builds.
+
 ## Goal
 
 When a Steam Remote Play session starts, create/activate a dedicated virtual monitor for the stream so the physical displays are left alone; tear it down when the session ends.
