@@ -97,3 +97,36 @@ func TestCrossOriginWriteRejected(t *testing.T) {
 		t.Fatalf("want 403 got %d", rec.Code)
 	}
 }
+
+type fakeDisp struct {
+	active bool
+	modes  []display.Mode
+}
+
+func (f *fakeDisp) Create(m display.Mode) error {
+	f.active = true
+	f.modes = append(f.modes, m)
+	return nil
+}
+func (f *fakeDisp) Destroy() error { f.active = false; return nil }
+func (f *fakeDisp) Active() bool   { return f.active }
+
+func TestModeChangeRecreatesActiveMonitor(t *testing.T) {
+	store, err := config.Open(filepath.Join(t.TempDir(), "c.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fd := &fakeDisp{active: true}
+	h := New(store, fd, "test", "tok")
+	body := `{"width":1920,"height":1080,"refreshHz":120,"autoCreate":true,"codec":"auto"}`
+	if rec := do(h, "PUT", "/api/config", body); rec.Code != 200 {
+		t.Fatalf("got %d: %s", rec.Code, rec.Body)
+	}
+	if len(fd.modes) != 1 || fd.modes[0] != (display.Mode{Width: 1920, Height: 1080, RefreshHz: 120}) {
+		t.Fatalf("expected recreate at 1920x1080@120, got %v", fd.modes)
+	}
+	do(h, "PUT", "/api/config", body)
+	if len(fd.modes) != 1 {
+		t.Fatalf("unchanged mode must not recreate, got %v", fd.modes)
+	}
+}

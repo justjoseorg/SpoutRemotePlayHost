@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net"
 	"net/http"
@@ -63,9 +64,17 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
+	old := s.cfg.Get()
 	if err := s.cfg.Set(m); err != nil {
 		writeErr(w, 400, err)
 		return
+	}
+	// Re-create a live virtual display so resolution/refresh changes apply immediately.
+	if s.disp.Active() && (old.Width != m.Width || old.Height != m.Height || old.RefreshHz != m.RefreshHz) {
+		if err := s.disp.Create(display.Mode{Width: m.Width, Height: m.Height, RefreshHz: m.RefreshHz}); err != nil {
+			writeErr(w, 500, fmt.Errorf("saved, but could not apply to the active monitor: %w", err))
+			return
+		}
 	}
 	writeJSON(w, 200, m)
 }
