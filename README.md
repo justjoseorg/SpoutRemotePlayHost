@@ -21,18 +21,6 @@ Two independent signals, so it doesn't depend on one fragile hook:
 
 Only **paired** devices get a virtual monitor, on every platform: a session from an unpaired client (or a plugin call with the API token instead of a device token) is logged and ignored. The monitor is created from that device's config, is kept across a quick stream restart (5 s grace), and is only removed by the device that owns it.
 
-## Status
-
-On Windows, the standalone host exe has been run on one PC (Windows 11, ArtLight installed): the web UI works and it created and removed a virtual monitor through ArtLight's SudoVDA driver. The Setup installer has not been run yet.
-
-- Web UI and API (`127.0.0.1:47995`): dark UI with a Devices tab (each paired device has its own resolution and refresh) and a Monitor defaults tab (default 1920x1080@60). Works and has tests. To let the Decky plugin connect, start with `-listen 0.0.0.0:47995`; non-loopback requests must send a bearer token: the API token (printed at startup, stored in `token` next to `config.json`) or a per-device token from pairing. Cross-origin browser writes are rejected.
-- Session detection: verified end to end on Linux (plugin signal and log watcher both reached the host). The resulting monitor creation on Linux is not yet verified, because the driver install is still being tested. Not run on Windows.
-- There is no codec setting: Steam Remote Play negotiates the codec itself, and PyroWave is not available with Steam streaming.
-- Windows backend: talks to the [SudoVDA](https://github.com/SudoMaker/SudoVDA) virtual display driver (same driver ArtLight uses) over its IOCTL protocol, including the watchdog ping. Built and signed in CI. Creating/removing a monitor is verified against an existing SudoVDA 1.10.9 (installed by ArtLight), unelevated, including making it primary, turning the other displays off (with an allowlist) and restoring the layout on removal (Windows CCD API). The isolated layout is saved to the display database only for the set of monitors that includes the virtual one, and a watchdog re-applies it if Windows changes the layout mid-session (e.g. a turned-off monitor sleeps, drops off the bus and comes back); our own driver build is untested on a machine.
-- Linux backend: uses the `vibeshine_drm` kernel module (the driver ArtLight uses, built via DKMS) and `kscreen-doctor`, so it needs KDE Plasma on Wayland and Linux 6.16+. Unit-tested; not yet run on hardware.
-- Hotkey: Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) removes the virtual monitor. Windows only (`RegisterHotKey`); compiles, untested. Restoring physical monitors is not implemented yet.
-- Tray icon (Windows and Linux): click it, or choose "Open Spout Remote Play Host", to open the web UI. Run with `-no-tray` to disable. Linux needs a StatusNotifier-capable panel (KDE has one; GNOME needs the AppIndicator extension). Verified to register on KDE only; the Windows tray is untested.
-
 ## Install
 
 - **Windows:** run `SpoutRemotePlayHost-Setup-vX.Y.Z.exe` from Releases (not the bare `spout-host-*-windows-amd64.exe`, which is a portable build without driver or autostart). The installer has these options:
@@ -53,8 +41,6 @@ GOOS=windows GOARCH=amd64 go build ./cmd/spout-host
 
 Windows: download `SpoutRemotePlayHost-Setup-v*.exe` from the latest release. It installs the host and a tray icon, and the SudoVDA virtual display driver unless one is already installed (see Install). Linux: `spout-host-v*-linux-amd64.tar.gz` (run `install.sh`).
 
-Merging a PR into `main` publishes a release automatically. `MAJOR.MINOR` is set by hand in the `VERSION` file; the patch number is auto-incremented per merge (e.g. `0.1.0`, `0.1.1`, ...). Edit `VERSION` in a PR to start a new minor/major. Add the `no-release` label to a PR to skip releasing.
-
 ## Android and other Steam Link devices
 
 No Android app is needed: Steam Link already streams. The Devices tab has an **Other Steam devices** section listing the devices Steam knows (read from the running Steam client), where you set a virtual monitor for each (resolution, refresh, auto-create). When a stream starts, the host matches the client name in Steam's log to that device. The device list is verified against the real Steam on Linux; an actual Android stream has not been tried yet. Pair the device in Steam first. The list also shows other PCs Steam can see, so ignore those.
@@ -70,8 +56,7 @@ The **Apps** tab of the web UI adds programs to this PC's Steam library (as non-
 
 ## Pairing
 
-Same flow as ArtLight/ArtMoon: the client shows a 4-digit PIN, the host raises a notification (Windows toast or Linux `notify-send`; clicking it opens the UI), and you type the PIN into the host UI. Only a salted hash of the PIN leaves the client, requests expire after 2 minutes and are cancelled after 5 wrong PINs, and confirming/revoking is only possible from this PC. Each device gets its own revocable token (`paired.json` stores hashes only). The notification code is untested on Windows.
-
+The client shows a 4-digit PIN, the host raises a notification (Windos & Linux), and you type the PIN into the host UI. Requests expire after 2 minutes and are cancelled after 5 wrong PINs, and confirming/revoking is only possible from the host PC.
 ## Credits
 
 This project is based on the ideas and work of others, and I'm grateful to them:
