@@ -17,13 +17,13 @@ Nothing here has been run on a Windows machine yet.
 - Windows backend: talks to the [SudoVDA](https://github.com/SudoMaker/SudoVDA) virtual display driver (same driver ArtLight uses) over its IOCTL protocol, including the watchdog ping. Compiles; untested. SudoVDA must be installed separately.
 - Hotkey: Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) removes the virtual monitor. Windows only (`RegisterHotKey`); compiles, untested. Restoring physical monitors is not implemented yet.
 - Tray icon (Windows and Linux): click it, or choose "Open Spout Remote Play Host", to open the web UI. Run with `-no-tray` to disable. Linux needs a StatusNotifier-capable panel (KDE has one; GNOME needs the AppIndicator extension). Verified to register on KDE only; the Windows tray is untested.
-- Linux: UI runs, but there is no virtual display backend yet.
+- Linux: virtual display uses the `vibeshine_drm` kernel module (same driver ArtLight uses, built via DKMS) and `kscreen-doctor`, so it needs KDE Plasma on Wayland and Linux 6.16+. Written but not yet tested end to end.
 - Not started: detecting a Steam Remote Play session (for `autoCreate`).
 
 ## Install
 
 - **Windows:** run `SpoutRemotePlayHost-Setup-vX.Y.Z.exe` from Releases. The optional "SudoVDA virtual display driver" component is built from [SudoMaker/SudoVDA](https://github.com/SudoMaker/SudoVDA) (MIT) in CI and signed with a self-signed certificate; installing it adds that certificate to the Windows Trusted Root and Trusted Publishers stores (removed on uninstall). Untested.
-- **Linux:** extract `spout-host-vX.Y.Z-linux-amd64.tar.gz` and run `./install.sh` (user systemd service; `--uninstall` removes it). No virtual display driver is installed because there is no Linux backend yet.
+- **Linux:** extract `spout-host-vX.Y.Z-linux-amd64.tar.gz` and run `./install.sh` (user systemd service; `--uninstall` removes it). It also builds and installs the driver with DKMS (needs `dkms`, kernel headers and sudo) and a sudoers rule limited to `/usr/local/libexec/spout-vdisplay`; pass `--no-driver` to skip.
 
 ## Build
 
