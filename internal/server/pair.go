@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
@@ -272,5 +273,5 @@ func (s *Server) resetClientConfig(w http.ResponseWriter, r *http.Request) {
 // discover lets clients find this host on the LAN. It reveals only the app name, hostname and version.
 func (s *Server) discover(w http.ResponseWriter, _ *http.Request) {
 	name, _ := os.Hostname()
-	writeJSON(w, http.StatusOK, map[string]string{"app": "spout-host", "name": name, "version": s.version})
+	writeJSON(w, http.StatusOK, map[string]string{"app": "spout-host", "name": name, "version": s.version, "os": runtime.GOOS})
 }
