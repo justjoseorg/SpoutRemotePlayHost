@@ -24,3 +24,7 @@ Scaffold only. Nothing here creates a virtual display yet.
 go build ./cmd/spigot-companion
 GOOS=windows GOARCH=amd64 go build ./cmd/spigot-companion
 ```
+
+## Releases
+
+Merging a PR into `main` publishes a release automatically. `MAJOR.MINOR` is set by hand in the `VERSION` file; the patch number is auto-incremented per merge (e.g. `0.1.0`, `0.1.1`, ...). Edit `VERSION` in a PR to start a new minor/major. Add the `no-release` label to a PR to skip releasing.
