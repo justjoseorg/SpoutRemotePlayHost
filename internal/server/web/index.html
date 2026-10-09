@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpigotRemotePlayHost</title>
+<style>
+  body { font: 16px system-ui, sans-serif; max-width: 28rem; margin: 2rem auto; padding: 0 1rem; }
+  label { display: block; margin: .75rem 0 .25rem; }
+  input[type=number] { width: 100%; padding: .4rem; box-sizing: border-box; }
+  button { margin: 1rem .5rem 0 0; padding: .5rem 1rem; }
+  #msg { margin-top: 1rem; min-height: 1.5rem; }
+</style>
+<h1>SpigotRemotePlayHost</h1>
+<p>Virtual monitor: <strong id="state">…</strong> <small id="ver"></small></p>
+<form id="f">
+  <label>Width <input type="number" name="width"></label>
+  <label>Height <input type="number" name="height"></label>
+  <label>Refresh (Hz) <input type="number" name="refreshHz"></label>
+  <label><input type="checkbox" name="autoCreate"> Create automatically when a Remote Play session starts</label>
+  <button type="submit">Save</button>
+</form>
+<button id="create">Create monitor</button><button id="destroy">Destroy monitor</button>
+<div id="msg"></div>
+<script>
+const $ = (s) => document.querySelector(s);
+const msg = (t) => ($("#msg").textContent = t);
+async function api(method, path, body) {
+  const r = await fetch(path, { method, body: body && JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+async function load() {
+  const c = await api("GET", "/api/config");
+  for (const k of ["width", "height", "refreshHz"]) $("#f")[k].value = c[k];
+  $("#f").autoCreate.checked = c.autoCreate;
+  const s = await api("GET", "/api/status");
+  $("#state").textContent = s.monitorActive ? "active" : "inactive";
+  $("#ver").textContent = "v" + s.version;
+}
+$("#f").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api("PUT", "/api/config", {
+      width: +f.width.value, height: +f.height.value,
+      refreshHz: +f.refreshHz.value, autoCreate: f.autoCreate.checked,
+    });
+    msg("Saved");
+  } catch (err) { msg(err.message); }
+};
+for (const a of ["create", "destroy"])
+  $("#" + a).onclick = async () => {
+    try { await api("POST", "/api/monitor/" + a); msg("OK"); } catch (err) { msg(err.message); }
+    load();
+  };
+load();
+</script>

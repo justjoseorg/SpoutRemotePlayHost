@@ -1,3 +1,5 @@
 module github.com/justjoseorg/SpigotRemotePlayHost
 
-go 1.23.4
+go 1.23
+
+require golang.org/x/sys v0.28.0

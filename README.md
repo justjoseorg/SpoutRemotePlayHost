@@ -8,15 +8,13 @@ When a Steam Remote Play session starts, create/activate a dedicated virtual mon
 
 ## Status
 
-Scaffold only. Nothing here creates a virtual display yet.
+Nothing here has been run on a Windows machine yet.
 
-## Planned design
-
-- `internal/display`: `Manager` interface (`Create`, `Destroy`) with per-OS implementations.
-  - Windows: virtual display driver (IddCx-based) plus CCD API for mode/topology.
-  - Linux: to be decided (KMS/EDID override or compositor-specific).
-- Session detection: watch for the Steam Remote Play streaming process/connection.
-- Optional control channel for the plugin (status, resolution matching the client).
+- Web UI and API (`127.0.0.1:47995`, override with `-listen`): edit width/height/refresh/auto-create, create/destroy the monitor. Works and has tests; no authentication, so it binds to loopback by default.
+- Windows backend: talks to the [SudoVDA](https://github.com/SudoMaker/SudoVDA) virtual display driver (same driver ArtLight uses) over its IOCTL protocol, including the watchdog ping. Compiles; untested. SudoVDA must be installed separately.
+- Hotkey: Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) removes the virtual monitor. Windows only (`RegisterHotKey`); compiles, untested. Restoring physical monitors is not implemented yet.
+- Linux: UI runs, but there is no virtual display backend yet.
+- Not started: detecting a Steam Remote Play session (for `autoCreate`).
 
 ## Build
 
