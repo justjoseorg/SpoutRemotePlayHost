@@ -52,10 +52,19 @@ func Send(title, body, url string) {
 				log.Println("notification failed:", err)
 				return
 			}
-			if url != "" && strings.HasPrefix(string(out), "open") {
-				if xdg, err := exec.LookPath("xdg-open"); err == nil {
-					_ = exec.Command(xdg, url).Start()
-				}
+			// Any returned action (Open button or a click on the body) means the user wants the UI.
+			action := strings.TrimSpace(string(out))
+			if url == "" || action == "" {
+				return
+			}
+			log.Printf("notification action %q: opening %s", action, url)
+			xdg, err := exec.LookPath("xdg-open")
+			if err != nil {
+				log.Println("cannot open UI:", err)
+				return
+			}
+			if err := exec.Command(xdg, url).Start(); err != nil {
+				log.Println("xdg-open failed:", err)
 			}
 		}()
 	}
