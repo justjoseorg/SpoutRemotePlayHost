@@ -51,6 +51,14 @@ Windows: download `SpoutRemotePlayHost-Setup-v*.exe` from the latest release. It
 
 Merging a PR into `main` publishes a release automatically. `MAJOR.MINOR` is set by hand in the `VERSION` file; the patch number is auto-incremented per merge (e.g. `0.1.0`, `0.1.1`, ...). Edit `VERSION` in a PR to start a new minor/major. Add the `no-release` label to a PR to skip releasing.
 
+## Apps
+
+The **Apps** tab of the web UI adds programs to this PC's Steam library (as non-Steam shortcuts), so they can be streamed like any other game. The Decky plugin can list them from the host.
+
+- Steam is controlled through its local debug port. Click **Enable Steam integration** once, then restart Steam.
+- Adding, removing and deleting apps works only from this PC (loopback), because it runs programs on the host. Paired devices can only read the list.
+- Verified on Linux Steam: add and remove show up in the library. Whether the Steam Link client lists them is not yet verified.
+
 ## Pairing
 
 Same flow as ArtLight/ArtMoon: the client shows a 4-digit PIN, the host raises a notification (Windows toast or Linux `notify-send`; clicking it opens the UI), and you type the PIN into the host UI. Only a salted hash of the PIN leaves the client, requests expire after 2 minutes and are cancelled after 5 wrong PINs, and confirming/revoking is only possible from this PC. Each device gets its own revocable token (`paired.json` stores hashes only). The notification code is untested on Windows.

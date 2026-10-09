@@ -52,7 +52,7 @@
   <h2>Pairing request</h2>
   <div id="pending"></div>
 </section>
-<nav class="tabs"><button data-tab="devices" class="on">Devices</button><button data-tab="defaults">Monitor defaults</button></nav>
+<nav class="tabs"><button data-tab="devices" class="on">Devices</button><button data-tab="apps">Apps</button><button data-tab="defaults">Monitor defaults</button></nav>
 <section class="panel" id="tab-defaults" hidden>
   <h2>Monitor defaults</h2>
   <p><small>Used by every device that has no custom monitor.</small></p>
@@ -68,6 +68,23 @@
     <button type="submit">Save</button>
     <button type="button" id="create" class="primary">Create monitor</button>
     <button type="button" id="destroy">Destroy monitor</button>
+  </form>
+</section>
+<section class="panel" id="tab-apps" hidden>
+  <h2>Apps in Steam</h2>
+  <p><small>Programs added here appear in this PC's Steam library, so your paired devices can stream them.</small></p>
+  <div id="steamnote"></div>
+  <div id="apps"></div>
+  <form id="appform">
+    <div class="row">
+      <label>Name <input name="name" required maxlength="80"></label>
+      <label>Program <input name="exe" required placeholder="C:\Program Files\App\app.exe or /usr/bin/app"></label>
+    </div>
+    <div class="row">
+      <label>Arguments <input name="args"></label>
+      <label>Start in (optional) <input name="startDir"></label>
+    </div>
+    <button type="submit">Add to Steam</button>
   </form>
 </section>
 <section class="panel" id="tab-devices">
@@ -200,7 +217,48 @@ for (const b of document.querySelectorAll(".tabs button"))
     for (const x of document.querySelectorAll(".tabs button")) x.classList.toggle("on", x === b);
     $("#tab-devices").hidden = b.dataset.tab !== "devices";
     $("#tab-defaults").hidden = b.dataset.tab !== "defaults";
+    $("#tab-apps").hidden = b.dataset.tab !== "apps";
+    if (b.dataset.tab === "apps") refreshApps();
   };
+function renderApps(r) {
+  const st = r.steam;
+  const note = $("#steamnote");
+  if (st.ready) note.replaceChildren();
+  else {
+    const card = el("div", "", { className: "card" });
+    card.append(el("p", "Steam is not controllable yet. " + (st.hint || "")));
+    if (!st.debugEnabled)
+      card.append(el("button", "Enable Steam integration", { className: "primary", onclick: async () => {
+        try { renderApps(await api("POST", "/api/steam/enable-debugging")); msg("Enabled. Restart Steam once."); }
+        catch (err) { msg(err.message); } } }));
+    note.replaceChildren(card);
+  }
+  const cards = r.apps.map((a) => {
+    const card = el("div", "", { className: "card" });
+    card.append(el("span", a.name, { className: "name" }),
+      el("span", a.inSteam ? "In Steam" : "Not in Steam", { className: "tag" + (a.inSteam ? " custom" : "") }),
+      el("p", a.exe + (a.args ? " " + a.args : "")));
+    card.lastChild.style.color = "var(--dim)";
+    const act = async (method, path) => {
+      try { renderApps(await api(method, path)); } catch (err) { msg(err.message); refreshApps(); }
+    };
+    card.append(a.inSteam
+      ? el("button", "Remove from Steam", { onclick: () => act("DELETE", "/api/apps/" + a.id + "/steam") })
+      : el("button", "Add to Steam", { className: "primary", onclick: () => act("POST", "/api/apps/" + a.id + "/steam") }),
+      el("button", "Delete", { className: "danger", onclick: () => { if (confirm("Delete " + a.name + "?")) act("DELETE", "/api/apps/" + a.id); } }));
+    return card;
+  });
+  $("#apps").replaceChildren(...(cards.length ? cards : [el("small", "No apps yet.")]));
+}
+async function refreshApps() { try { renderApps(await api("GET", "/api/apps")); } catch (err) { msg(err.message); } }
+$("#appform").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    renderApps(await api("POST", "/api/apps", { name: f.name.value, exe: f.exe.value, args: f.args.value, startDir: f.startDir.value, addToSteam: true }));
+    f.reset(); msg("Added");
+  } catch (err) { msg(err.message); refreshApps(); }
+};
 load();
 refreshClients();
 refreshPairing();
