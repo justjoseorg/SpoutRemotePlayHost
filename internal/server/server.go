@@ -13,6 +13,7 @@ import (
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 )
 
 //go:embed web
@@ -22,20 +23,28 @@ type Server struct {
 	cfg     *config.Store
 	disp    display.Manager
 	version string
+	pair    *pairing.Manager
 }
 
 // New returns the HTTP handler. Requests from non-loopback addresses must send "Authorization: Bearer <token>".
-func New(cfg *config.Store, disp display.Manager, version, token string) http.Handler {
-	s := &Server{cfg: cfg, disp: disp, version: version}
+func New(cfg *config.Store, disp display.Manager, version, token string, pair *pairing.Manager) http.Handler {
+	s := &Server{cfg: cfg, disp: disp, version: version, pair: pair}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.status)
 	mux.HandleFunc("GET /api/config", s.getConfig)
 	mux.HandleFunc("PUT /api/config", s.putConfig)
 	mux.HandleFunc("POST /api/monitor/create", s.create)
 	mux.HandleFunc("POST /api/monitor/destroy", s.destroy)
+	mux.HandleFunc("POST /api/pair/request", s.pairRequest)
+	mux.HandleFunc("POST /api/pair/poll", s.pairPoll)
+	mux.HandleFunc("GET /api/pair/pending", localOnly(s.pairPending))
+	mux.HandleFunc("POST /api/pair/confirm", localOnly(s.pairConfirm))
+	mux.HandleFunc("DELETE /api/pair/pending/{id}", localOnly(s.pairDeny))
+	mux.HandleFunc("GET /api/clients", localOnly(s.clients))
+	mux.HandleFunc("DELETE /api/clients/{id}", localOnly(s.revoke))
 	sub, _ := fs.Sub(webFS, "web")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
-	return requireToken(mux, token)
+	return requireToken(mux, token, pair)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -101,7 +110,7 @@ func (s *Server) destroy(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]bool{"monitorActive": false})
 }
 
-func requireToken(next http.Handler, token string) http.Handler {
+func requireToken(next http.Handler, token string, pair *pairing.Manager) http.Handler {
 	want := []byte("Bearer " + token)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -114,7 +123,13 @@ func requireToken(next http.Handler, token string) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), want) != 1 {
+		// Pairing endpoints are reachable without a token; they are gated by the PIN confirmed on this PC.
+		if r.Method == http.MethodPost && (r.URL.Path == "/api/pair/request" || r.URL.Path == "/api/pair/poll") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if subtle.ConstantTimeCompare([]byte(auth), want) != 1 && !(pair != nil && strings.HasPrefix(auth, "Bearer ") && pair.Valid(auth[7:])) {
 			writeErr(w, http.StatusUnauthorized, errors.New("missing or invalid token"))
 			return
 		}

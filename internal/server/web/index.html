@@ -7,9 +7,15 @@
   label { display: block; margin: .75rem 0 .25rem; }
   input[type=number] { width: 100%; padding: .4rem; box-sizing: border-box; }
   button { margin: 1rem .5rem 0 0; padding: .5rem 1rem; }
+  .card { border: 1px solid #8884; border-radius: .5rem; padding: .75rem; margin: .5rem 0; }
+  .card input { width: 6rem; font-size: 1.4rem; letter-spacing: .3rem; text-align: center; }
   #msg { margin-top: 1rem; min-height: 1.5rem; }
 </style>
 <h1>SpoutRemotePlayHost</h1>
+<section id="pairing" hidden>
+  <h2>Pairing request</h2>
+  <div id="pending"></div>
+</section>
 <p>Virtual monitor: <strong id="state">…</strong> <small id="ver"></small></p>
 <form id="f">
   <label>Width <input type="number" name="width"></label>
@@ -21,6 +27,8 @@
   <button type="submit">Save</button>
 </form>
 <button id="create">Create monitor</button><button id="destroy">Destroy monitor</button>
+<h2>Paired devices</h2>
+<div id="clients"></div>
 <div id="msg"></div>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -56,5 +64,45 @@ for (const a of ["create", "destroy"])
     try { await api("POST", "/api/monitor/" + a); msg("OK"); } catch (err) { msg(err.message); }
     load();
   };
+
+function el(tag, text, props) {
+  const e = document.createElement(tag);
+  if (text) e.textContent = text;
+  return Object.assign(e, props);
+}
+async function refreshPairing() {
+  try {
+    const pending = await api("GET", "/api/pair/pending");
+    $("#pairing").hidden = pending.length === 0;
+    const box = $("#pending");
+    if (!box.querySelector("input:focus")) {
+      box.replaceChildren(...pending.map((p) => {
+        const card = el("div", "", { className: "card" });
+        const pin = el("input", "", { inputMode: "numeric", maxLength: 4, placeholder: "PIN" });
+        const ok = el("button", "Pair", { onclick: async () => {
+          try { await api("POST", "/api/pair/confirm", { id: p.id, pin: pin.value }); msg("Paired " + p.name); }
+          catch (err) { msg(err.message); }
+          refreshPairing(); refreshClients();
+        } });
+        const no = el("button", "Deny", { onclick: async () => { await api("DELETE", "/api/pair/pending/" + p.id); refreshPairing(); } });
+        card.append(el("p", p.name + " wants to pair. Enter the 4-digit PIN shown on that device."), pin, ok, no);
+        return card;
+      }));
+    }
+  } catch (e) {}
+}
+async function refreshClients() {
+  const list = await api("GET", "/api/clients");
+  $("#clients").replaceChildren(...(list.length ? list : [null]).map((c) => {
+    if (!c) return el("p", "None yet.");
+    const row = el("div", "", { className: "card" });
+    row.append(el("strong", c.name), el("span", "  " + new Date(c.added).toLocaleDateString() + "  "),
+      el("button", "Revoke", { onclick: async () => { await api("DELETE", "/api/clients/" + c.id); refreshClients(); } }));
+    return row;
+  }));
+}
 load();
+refreshClients();
+refreshPairing();
+setInterval(refreshPairing, 2000);
 </script>

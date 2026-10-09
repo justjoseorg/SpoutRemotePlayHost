@@ -4,12 +4,16 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/hotkey"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/notify"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/server"
 )
 
@@ -42,6 +46,13 @@ func main() {
 
 	disp := display.New()
 
+	pair, err := pairing.New(filepath.Join(filepath.Dir(*cfgPath), "paired.json"), notify.Send)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, port, _ := net.SplitHostPort(*addr)
+	pair.URL = "http://127.0.0.1:" + port + "/"
+
 	stop := make(chan struct{})
 	defer close(stop)
 	go func() {
@@ -56,7 +67,7 @@ func main() {
 		}
 	}()
 
-	handler := server.New(store, disp, version, token)
+	handler := server.New(store, disp, version, token, pair)
 	fmt.Printf("spout-host %s: UI at http://%s\n", version, *addr)
 	if err := http.ListenAndServe(*addr, handler); err != nil {
 		fmt.Fprintln(os.Stderr, err)

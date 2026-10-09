@@ -9,6 +9,7 @@ import (
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 )
 
 func setup(t *testing.T) (http.Handler, string) {
@@ -18,7 +19,16 @@ func setup(t *testing.T) (http.Handler, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(store, display.New(), "test", "tok"), path
+	return New(store, display.New(), "test", "tok", mustPair(t)), path
+}
+
+func mustPair(t *testing.T) *pairing.Manager {
+	t.Helper()
+	m, err := pairing.New("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
 }
 
 func do(h http.Handler, method, path, body string) *httptest.ResponseRecorder {
@@ -117,7 +127,7 @@ func TestModeChangeRecreatesActiveMonitor(t *testing.T) {
 		t.Fatal(err)
 	}
 	fd := &fakeDisp{active: true}
-	h := New(store, fd, "test", "tok")
+	h := New(store, fd, "test", "tok", mustPair(t))
 	body := `{"width":1920,"height":1080,"refreshHz":120,"autoCreate":true,"codec":"auto"}`
 	if rec := do(h, "PUT", "/api/config", body); rec.Code != 200 {
 		t.Fatalf("got %d: %s", rec.Code, rec.Body)
@@ -128,5 +138,95 @@ func TestModeChangeRecreatesActiveMonitor(t *testing.T) {
 	do(h, "PUT", "/api/config", body)
 	if len(fd.modes) != 1 {
 		t.Fatalf("unchanged mode must not recreate, got %v", fd.modes)
+	}
+}
+
+func doFrom(h http.Handler, addr, method, path, body, auth string) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req.RemoteAddr = addr
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestPairingFlow(t *testing.T) {
+	h, _ := setup(t)
+	const remote = "192.168.1.50:5555"
+	salt, pin, secret := "saltsalt1234", "0427", "client-secret"
+	reqBody := `{"name":"Deck","salt":"` + salt + `","pinHash":"` + pairing.PINHash(salt, pin) +
+		`","secretHash":"` + pairing.SecretHash(secret) + `"}`
+
+	rec := doFrom(h, remote, "POST", "/api/pair/request", reqBody, "")
+	if rec.Code != 200 {
+		t.Fatalf("request: %d %s", rec.Code, rec.Body)
+	}
+	id := strings.Split(strings.Split(rec.Body.String(), `"id":"`)[1], `"`)[0]
+	poll := `{"id":"` + id + `","secret":"` + secret + `"}`
+
+	if rec := doFrom(h, remote, "POST", "/api/pair/poll", poll, ""); !strings.Contains(rec.Body.String(), `"pending"`) {
+		t.Fatalf("expected pending: %s", rec.Body)
+	}
+	if rec := doFrom(h, remote, "POST", "/api/pair/poll", `{"id":"`+id+`","secret":"nope"}`, ""); !strings.Contains(rec.Body.String(), `"gone"`) {
+		t.Fatalf("wrong secret must not see the request: %s", rec.Body)
+	}
+	confirm := func(p string) int {
+		return do(h, "POST", "/api/pair/confirm", `{"id":"`+id+`","pin":"`+p+`"}`).Code
+	}
+	if rec := doFrom(h, remote, "POST", "/api/pair/confirm", `{"id":"`+id+`","pin":"`+pin+`"}`, "Bearer tok"); rec.Code != 403 {
+		t.Fatalf("remote confirm must be rejected even with the API token, got %d", rec.Code)
+	}
+	if c := confirm("1111"); c != 403 {
+		t.Fatalf("wrong pin: %d", c)
+	}
+	if c := confirm(pin); c != 200 {
+		t.Fatalf("right pin: %d", c)
+	}
+	rec = doFrom(h, remote, "POST", "/api/pair/poll", poll, "")
+	if !strings.Contains(rec.Body.String(), `"approved"`) || !strings.Contains(rec.Body.String(), `"token"`) {
+		t.Fatalf("expected approval with token: %s", rec.Body)
+	}
+	tok := strings.Split(strings.Split(rec.Body.String(), `"token":"`)[1], `"`)[0]
+	if rec := doFrom(h, remote, "POST", "/api/pair/poll", poll, ""); !strings.Contains(rec.Body.String(), `"gone"`) {
+		t.Fatalf("token must be handed out once: %s", rec.Body)
+	}
+
+	if rec := doFrom(h, remote, "GET", "/api/config", "", ""); rec.Code != 401 {
+		t.Fatalf("no token: %d", rec.Code)
+	}
+	if rec := doFrom(h, remote, "GET", "/api/config", "", "Bearer "+tok); rec.Code != 200 {
+		t.Fatalf("paired token rejected: %d", rec.Code)
+	}
+	if rec := doFrom(h, remote, "GET", "/api/clients", "", "Bearer "+tok); rec.Code != 403 {
+		t.Fatalf("clients list is local-only: %d", rec.Code)
+	}
+
+	list := do(h, "GET", "/api/clients", "")
+	if strings.Contains(list.Body.String(), "tokenHash") || !strings.Contains(list.Body.String(), "Deck") {
+		t.Fatalf("bad client list: %s", list.Body)
+	}
+	cid := strings.Split(strings.Split(list.Body.String(), `"id":"`)[1], `"`)[0]
+	if c := do(h, "DELETE", "/api/clients/"+cid, "").Code; c != 200 {
+		t.Fatalf("revoke: %d", c)
+	}
+	if rec := doFrom(h, remote, "GET", "/api/config", "", "Bearer "+tok); rec.Code != 401 {
+		t.Fatalf("revoked token still works: %d", rec.Code)
+	}
+}
+
+func TestPairingLockoutAfterWrongPINs(t *testing.T) {
+	h, _ := setup(t)
+	salt := "saltsalt1234"
+	body := `{"name":"x","salt":"` + salt + `","pinHash":"` + pairing.PINHash(salt, "0001") +
+		`","secretHash":"` + pairing.SecretHash("s") + `"}`
+	rec := doFrom(h, "10.0.0.2:1", "POST", "/api/pair/request", body, "")
+	id := strings.Split(strings.Split(rec.Body.String(), `"id":"`)[1], `"`)[0]
+	for i := 0; i < 5; i++ {
+		do(h, "POST", "/api/pair/confirm", `{"id":"`+id+`","pin":"9999"}`)
+	}
+	if c := do(h, "POST", "/api/pair/confirm", `{"id":"`+id+`","pin":"0001"}`).Code; c != 404 {
+		t.Fatalf("request should be cancelled after 5 wrong PINs, got %d", c)
 	}
 }
