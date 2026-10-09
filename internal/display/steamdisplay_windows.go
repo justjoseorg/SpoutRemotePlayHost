@@ -58,10 +58,12 @@ type steamDisplay struct {
 
 func newBackend() backend { return &steamDisplay{} }
 
-// virtualName reports whether a monitor or adapter name belongs to the SudoVDA driver.
+// virtualName reports whether a monitor name or device path belongs to the SudoVDA driver.
+// Steam names its display after the client (e.g. "ayn-odin-2-po"), so the reliable marker is
+// SudoVDA's EDID manufacturer ID, SMK, in the device path (\\?\DISPLAY#SMKD1CE#...).
 func virtualName(s string) bool {
 	s = strings.ToLower(s)
-	for _, k := range []string{"sudovda", "sudomaker", "virtual display"} {
+	for _, k := range []string{"display#smk", "sudovda", "sudomaker", "virtual display"} {
 		if strings.Contains(s, k) {
 			return true
 		}

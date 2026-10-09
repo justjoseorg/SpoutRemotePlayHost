@@ -2,6 +2,19 @@
 
 Minor releases (`X.Y.0`) get a written entry here, which becomes their release notes. Patch releases (`X.Y.Z`) are listed on the [Releases](https://github.com/justjoseorg/SpoutRemotePlayHost/releases) page with the change that produced them. Each entry covers everything since the previous minor release.
 
+## 0.3
+
+Released 2026-10-09.
+
+### Windows
+
+- **Steam creates the virtual display now.** Steam's Remote Play (client beta, with SudoVDA as its display device) adds a virtual display sized to the device. The host no longer creates its own; it waits up to 20 seconds for Steam's display, makes it the only active one (except the displays you keep on), and restores your layout when the session ends. If Steam's display never shows up, your displays are left on. See [Steam setup](https://github.com/justjoseorg/SpoutRemotePlayHost#-steam-setup-windows).
+- **Recognises Steam's display by SudoVDA's monitor ID** (`SMK`), since Steam names it after the client device.
+- The per-device resolution and refresh settings now only apply to Linux hosts; `/api/discover` reports the host OS so the plugin can hide them for Windows.
+
+### Project
+
+- Written changelog for minor releases, used as their release notes; patch releases keep the change title.
 ## 0.2
 
 Released 2026-10-09.
