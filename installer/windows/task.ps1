@@ -9,13 +9,16 @@ $exe = Join-Path (Split-Path -Parent $PSCommandPath) 'spout-host.exe'
 
 Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
+# Also drops rules Windows created from its "allow access" prompt for this exe.
+Get-NetFirewallApplicationFilter -Program $exe -ErrorAction SilentlyContinue | Get-NetFirewallRule | Remove-NetFirewallRule
 Get-NetFirewallRule -DisplayName 'Spout Remote Play Host' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 if ($Uninstall) { exit 0 }
 
 if ($Lan) {
-    # Non-local requests still need the API token or a paired device token.
+    # All profiles: home networks are often classified as Public. Non-local requests still
+    # need the API token or a paired device token.
     New-NetFirewallRule -DisplayName 'Spout Remote Play Host' -Direction Inbound -Action Allow -Program $exe `
-        -Protocol TCP -LocalPort 47995 -Profile Domain, Private | Out-Null
+        -Protocol TCP -LocalPort 47995 -Profile Any | Out-Null
 }
 
 if ($Autostart) {

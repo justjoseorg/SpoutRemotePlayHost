@@ -48,10 +48,16 @@ func main() {
 	_, port, _ := net.SplitHostPort(*addr)
 	uiURL := "http://127.0.0.1:" + port + "/"
 
-	ln, err := net.Listen("tcp", *addr)
-	if err != nil {
+	// Checked before binding too: Windows lets 0.0.0.0 and 127.0.0.1 listeners share a port.
+	alreadyUp := alreadyRunning(uiURL)
+	var ln net.Listener
+	var err error
+	if !alreadyUp {
+		ln, err = net.Listen("tcp", *addr)
+	}
+	if alreadyUp || err != nil {
 		// Launching it again while it already runs (e.g. from the logon task) just shows the UI.
-		if alreadyRunning(uiURL) {
+		if alreadyUp || alreadyRunning(uiURL) {
 			if *background {
 				return
 			}

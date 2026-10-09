@@ -22,7 +22,7 @@ Name: "driver"; Description: "SudoVDA virtual display driver (an existing SudoVD
 
 [Tasks]
 Name: "autostart"; Description: "Start automatically when I sign in"
-Name: "lan"; Description: "Allow the Decky plugin to connect over the local network (listens on port 47995, adds a firewall rule for private networks)"
+Name: "lan"; Description: "Allow the Decky plugin to connect over the local network (listens on port 47995, adds a firewall rule; other machines still need a token)"
 
 [Files]
 Source: "{#HostExe}"; DestDir: "{app}"; Components: host
