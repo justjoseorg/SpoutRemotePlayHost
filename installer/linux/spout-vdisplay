@@ -35,8 +35,10 @@ destroy() {
 
 connector_name() {
   local d
+  # The module may also have been loaded with a default device (disconnected); only ours is connected.
   for d in "$SYSFS_DRM"/card*-Virtual-*; do
     [[ -e "$d" ]] || continue
+    [[ "$(cat "$d/status" 2>/dev/null)" == connected ]] || continue
     basename "$d" | sed 's/^card[0-9]*-//'
     return 0
   done
