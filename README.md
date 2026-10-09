@@ -84,14 +84,14 @@ Good to know:
 
 ### 🎮 Steam setup (Windows)
 
-Steam creates its own virtual display for Remote Play using the SudoVDA driver the installer provides. These steps follow public descriptions of the Steam client beta and have not been checked on our own PC yet, so Steam's wording may differ:
+Steam creates its own virtual display for Remote Play using the SudoVDA driver the installer provides. The menu paths below follow public descriptions of the Steam client beta, so Steam's wording may differ:
 
 1. Install the host with the **SudoVDA virtual display driver** option ticked (or keep an existing SudoVDA).
 2. In Steam, join the client beta: **Steam > Settings > Interface > Client Beta Participation**, then restart Steam.
-3. In **Steam > Settings > Remote Play > Advanced Host Options**, enable the virtual display option if Steam offers it.
+3. In **Steam > Settings > Remote Play > Advanced Host Options**, pick SudoVDA as the virtual display device if Steam offers it (Steam saves this as `CustomDisplayDevice "SUDOVDA"` in its config).
 4. Stream from your handheld. The host waits up to 20 seconds for Steam's display (Steam names it after the device; the host recognises it by SudoVDA's monitor ID, `SMK`), turns the other displays off and restores them when the session ends. If Steam's display never appears, your displays are left on.
 
-Untested on Windows: how the host recognises Steam's display, and the restore.
+Tested on Windows 11 with an Odin 2 Portal on the Steam client beta: Steam's display was recognised, the other displays turned off during the stream, and the layout was restored afterwards.
 
 ### 🐧 Linux
 
