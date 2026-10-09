@@ -56,6 +56,31 @@ type sudovda struct {
 
 func newBackend() backend { return &sudovda{} }
 
+type targetRef struct {
+	Adapter luid
+	ID      uint32
+}
+
+// The layout from before the current session, and the session's virtual display.
+var layout struct {
+	sync.Mutex
+	paths []pathInfo
+	modes []modeInfo
+	virt  *targetRef
+}
+
+func setSessionLayout(paths []pathInfo, modes []modeInfo, virt *targetRef) {
+	layout.Lock()
+	defer layout.Unlock()
+	layout.paths, layout.modes, layout.virt = paths, modes, virt
+}
+
+func sessionLayout() ([]pathInfo, []modeInfo, *targetRef) {
+	layout.Lock()
+	defer layout.Unlock()
+	return append([]pathInfo(nil), layout.paths...), append([]modeInfo(nil), layout.modes...), layout.virt
+}
+
 var (
 	setupapi                     = windows.NewLazySystemDLL("setupapi.dll")
 	procGetClassDevs             = setupapi.NewProc("SetupDiGetClassDevsW")
@@ -141,6 +166,11 @@ func (s *sudovda) create(m Mode) error {
 		windows.CloseHandle(h)
 		return err
 	}
+	// Remember the layout before the virtual display exists so it can be restored exactly.
+	origPaths, origModes, err := queryConfig(qdcOnlyActivePaths)
+	if err != nil {
+		log.Println("could not save the display layout:", err)
+	}
 	p := addParams{Width: uint32(m.Width), Height: uint32(m.Height), RefreshRate: uint32(m.RefreshHz), MonitorGUID: guid}
 	copy(p.DeviceName[:13], "SpoutRemote")
 	copy(p.SerialNumber[:13], "SPOUT0001")
@@ -153,11 +183,12 @@ func (s *sudovda) create(m Mode) error {
 	s.handle, s.guid, s.stop = h, guid, make(chan struct{})
 	go s.keepAlive(h, s.stop)
 
-	// Steam streams the primary display. The layout isn't saved, so Windows restores the
-	// previous one when the virtual display is removed.
+	// Steam streams the primary display, so the virtual display becomes the only one (plus the
+	// displays the user chose to keep). Nothing is saved; destroy puts the old layout back.
 	adapter := luid{Low: binary.LittleEndian.Uint32(out.AdapterLUID[:4]), High: int32(binary.LittleEndian.Uint32(out.AdapterLUID[4:]))}
-	if err := makePrimary(adapter, out.TargetID); err != nil {
-		log.Println("virtual display created but not made primary:", err)
+	setSessionLayout(origPaths, origModes, &targetRef{adapter, out.TargetID})
+	if err := isolate(adapter, out.TargetID, keepOutputs()); err != nil {
+		log.Println("virtual display created but other displays not turned off:", err)
 	}
 	return nil
 }
@@ -188,6 +219,14 @@ func (s *sudovda) destroy() error {
 		return nil
 	}
 	close(s.stop)
+	// Bring the physical displays back before removing the virtual one, so there is never a
+	// moment without any active display.
+	if paths, modes, _ := sessionLayout(); paths != nil {
+		if err := restore(paths, modes); err != nil {
+			log.Println("could not restore the display layout:", err)
+		}
+	}
+	setSessionLayout(nil, nil, nil)
 	err := ioctl(s.handle, ioctlRemoveDisplay, unsafe.Pointer(&s.guid), nil, uint32(unsafe.Sizeof(s.guid)), 0)
 	windows.CloseHandle(s.handle)
 	s.handle = 0

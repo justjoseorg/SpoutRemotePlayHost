@@ -80,6 +80,7 @@ func main() {
 	fmt.Println("API token for the Decky plugin / remote access:", token)
 
 	disp := display.New()
+	display.KeepOutputs = store.KeepDisplays
 
 	pair, err := pairing.New(filepath.Join(filepath.Dir(*cfgPath), "paired.json"), notify.Send)
 	if err != nil {

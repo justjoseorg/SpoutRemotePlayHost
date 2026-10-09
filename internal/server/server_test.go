@@ -363,3 +363,25 @@ func TestSessionStartStop(t *testing.T) {
 		t.Fatalf("bad state: %d", r.Code)
 	}
 }
+
+func TestDisplaysKeepList(t *testing.T) {
+	old := listOutputs
+	defer func() { listOutputs = old }()
+	listOutputs = func() ([]display.Output, error) {
+		return []display.Output{{ID: "mon-a", Name: "A", Primary: true}, {ID: "mon-b", Name: "B"}}, nil
+	}
+	h, _ := setup(t)
+	if out := do(h, "GET", "/api/displays", "").Body.String(); !strings.Contains(out, `"supported":true`) || strings.Contains(out, `"keep":true`) {
+		t.Fatalf("default keeps nothing: %s", out)
+	}
+	if r := do(h, "PUT", "/api/displays/keep", `{"keep":["mon-b"]}`); r.Code != 200 || !strings.Contains(r.Body.String(), `"id":"mon-b","name":"B","device":"","width":0,"height":0,"primary":false,"keep":true`) {
+		t.Fatalf("keep: %d %s", r.Code, r.Body)
+	}
+	if r := doFrom(h, "192.168.1.50:5555", "PUT", "/api/displays/keep", `{"keep":[]}`, "Bearer tok"); r.Code == 200 {
+		t.Fatal("only the local UI may change displays")
+	}
+	listOutputs = func() ([]display.Output, error) { return nil, display.ErrNotImplemented }
+	if out := do(h, "GET", "/api/displays", "").Body.String(); !strings.Contains(out, `"supported":false`) {
+		t.Fatalf("unsupported: %s", out)
+	}
+}

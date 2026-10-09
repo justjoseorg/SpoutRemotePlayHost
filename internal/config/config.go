@@ -46,12 +46,15 @@ type Store struct {
 	path    string
 	cur     Monitor
 	devices map[string]Monitor
+	keep    []string
 }
 
 // file is the on-disk layout: the default monitor inline plus one monitor config per paired device.
 type file struct {
 	Monitor
 	Devices map[string]Monitor `json:"devices,omitempty"`
+	// KeepDisplays lists physical displays (by ID) left on during a session; all others are turned off.
+	KeepDisplays []string `json:"keepDisplays,omitempty"`
 }
 
 func Open(path string) (*Store, error) {
@@ -76,8 +79,31 @@ func Open(path string) (*Store, error) {
 		}
 		s.devices[id] = m
 	}
-	s.cur = f.Monitor
+	s.cur, s.keep = f.Monitor, f.KeepDisplays
 	return s, nil
+}
+
+// KeepDisplays returns the IDs of physical displays that stay on during a session.
+func (s *Store) KeepDisplays() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.keep...)
+}
+
+// SetKeepDisplays saves the IDs of physical displays that stay on during a session.
+func (s *Store) SetKeepDisplays(ids []string) error {
+	if len(ids) > 32 {
+		return errors.New("too many displays")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old := s.keep
+	s.keep = append([]string(nil), ids...)
+	if err := s.saveLocked("", nil); err != nil {
+		s.keep = old
+		return err
+	}
+	return nil
 }
 
 func (s *Store) Get() Monitor {
@@ -127,13 +153,15 @@ func (s *Store) Forget(id string) error {
 	return s.saveLocked(id, nil)
 }
 
-// saveLocked applies the change (nil deletes a device) and writes the file; memory changes only on success.
+// saveLocked applies the change (nil deletes a device; nil with id "" only rewrites the file)
+// and writes the file; memory changes only on success.
 func (s *Store) saveLocked(id string, m *Monitor) error {
-	f := file{Monitor: s.cur, Devices: map[string]Monitor{}}
+	f := file{Monitor: s.cur, Devices: map[string]Monitor{}, KeepDisplays: s.keep}
 	for k, v := range s.devices {
 		f.Devices[k] = v
 	}
 	switch {
+	case m == nil && id == "":
 	case m == nil:
 		delete(f.Devices, id)
 	case id == "":
