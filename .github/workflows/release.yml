@@ -51,7 +51,7 @@ jobs:
               -ldflags "-s -w $gui -X main.version=${VERSION}" -o "dist/spout-host-${os}-amd64${ext}" ./cmd/spout-host
           done
           cp dist/spout-host-linux-amd64 pkg/spout-host
-          cp installer/linux/install.sh installer/linux/spout-host.service pkg/
+          cp installer/linux/install.sh installer/linux/spout-host.service installer/linux/spout-vdisplay pkg/
           tar -C pkg -czf "dist/spout-host-v${VERSION}-linux-amd64.tar.gz" .
       - uses: actions/upload-artifact@v4
         with:

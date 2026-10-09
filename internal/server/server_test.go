@@ -65,7 +65,11 @@ func TestConfigRejectsInvalid(t *testing.T) {
 }
 
 func TestCreateNotImplementedAndUI(t *testing.T) {
-	h, _ := setup(t)
+	store, err := config.Open(filepath.Join(t.TempDir(), "c.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := New(store, errDisp{}, "test", "tok", mustPair(t))
 	if r := do(h, "POST", "/api/monitor/create", ""); r.Code != 501 {
 		t.Errorf("create: want 501 got %d", r.Code)
 	}
@@ -320,3 +324,9 @@ func TestPairingStoresClientCapabilities(t *testing.T) {
 		t.Fatalf("caps missing or token leaked: %s", out)
 	}
 }
+
+type errDisp struct{}
+
+func (errDisp) Create(display.Mode) error { return display.ErrNotImplemented }
+func (errDisp) Destroy() error            { return nil }
+func (errDisp) Active() bool              { return false }

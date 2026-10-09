@@ -23,7 +23,7 @@ func TestManagerRecreateAndDestroy(t *testing.T) {
 }
 
 func TestStubReportsNotImplemented(t *testing.T) {
-	m := New()
+	m := newWithBackend(stub{})
 	if err := m.Create(Mode{1280, 800, 60}); err != ErrNotImplemented || m.Active() {
 		t.Fatal("stub should fail and stay inactive")
 	}

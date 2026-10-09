@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Root helper that drives the vibeshine_drm virtual display module through configfs.
+# Usage: spout-vdisplay create WIDTH HEIGHT REFRESH_HZ | destroy | status
+# Prints the DRM connector name (e.g. Virtual-1) on a successful create.
+set -euo pipefail
+
+CONFIGFS="${SPOUT_CONFIGFS:-/sys/kernel/config}"
+DRM_ROOT="$CONFIGFS/vibeshine-drm"
+DEV="$DRM_ROOT/spout"
+SYSFS_DRM="${SPOUT_SYSFS_DRM:-/sys/class/drm}"
+MODULE=vibeshine_drm
+
+die() { echo "spout-vdisplay: $*" >&2; exit 1; }
+
+ensure_module() {
+  if ! mountpoint -q "$CONFIGFS" 2>/dev/null && [[ -z "${SPOUT_CONFIGFS:-}" ]]; then
+    mount -t configfs configfs "$CONFIGFS"
+  fi
+  if [[ ! -d "$DRM_ROOT" ]]; then
+    modprobe "$MODULE" create_default_dev=0 || die "could not load $MODULE (is the driver installed?)"
+  fi
+  [[ -d "$DRM_ROOT" ]] || die "$MODULE did not expose $DRM_ROOT"
+}
+
+destroy() {
+  [[ -d "$DEV" ]] || return 0
+  echo 0 > "$DEV/enabled" 2>/dev/null || true
+  rm -f "$DEV/connectors/c0/possible_encoders/e0" "$DEV/encoders/e0/possible_crtcs/crtc0" \
+        "$DEV/planes/p0/possible_crtcs/crtc0" 2>/dev/null || true
+  for g in connectors/c0 encoders/e0 planes/p0 crtcs/crtc0; do
+    rmdir "$DEV/$g" 2>/dev/null || true
+  done
+  rmdir "$DEV" 2>/dev/null || die "could not remove $DEV"
+}
+
+connector_name() {
+  local d
+  for d in "$SYSFS_DRM"/card*-Virtual-*; do
+    [[ -e "$d" ]] || continue
+    basename "$d" | sed 's/^card[0-9]*-//'
+    return 0
+  done
+  return 1
+}
+
+create() {
+  local w=$1 h=$2 hz=$3
+  [[ $w =~ ^[0-9]{3,5}$ && $h =~ ^[0-9]{3,5}$ && $hz =~ ^[0-9]{2,3}$ ]] || die "invalid mode"
+  ((w <= 7680 && h <= 4320 && hz <= 360)) || die "mode out of range"
+  ensure_module
+  destroy
+  mkdir "$DEV"
+  mkdir "$DEV/planes/p0" "$DEV/crtcs/crtc0" "$DEV/encoders/e0" "$DEV/connectors/c0"
+  echo 1 > "$DEV/planes/p0/type"
+  ln -s "$DEV/crtcs/crtc0" "$DEV/planes/p0/possible_crtcs/crtc0"
+  ln -s "$DEV/crtcs/crtc0" "$DEV/encoders/e0/possible_crtcs/crtc0"
+  ln -s "$DEV/encoders/e0" "$DEV/connectors/c0/possible_encoders/e0"
+  echo "$w $h $((hz * 1000))" > "$DEV/connectors/c0/requested_mode"
+  echo 1 > "$DEV/connectors/c0/status"
+  echo 1 > "$DEV/enabled"
+  local i name
+  for i in $(seq 1 50); do
+    if name=$(connector_name); then echo "$name"; return 0; fi
+    sleep 0.1
+  done
+  destroy
+  die "virtual connector did not appear"
+}
+
+case "${1:-}" in
+  create) [[ $# -eq 4 ]] || die "usage: create W H HZ"; create "$2" "$3" "$4" ;;
+  destroy) [[ -d "$DRM_ROOT" ]] && destroy; exit 0 ;;
+  status) [[ -d "$DEV" ]] && connector_name || exit 1 ;;
+  *) die "usage: create W H HZ | destroy | status" ;;
+esac
