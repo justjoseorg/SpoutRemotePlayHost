@@ -91,6 +91,8 @@ install_driver() {
   sudo rm -rf "$drm_dir"
   sudo cp -r "$tmp/linux/vibeshine-drm" "$drm_dir"
   sudo sed "s/@PROJECT_VERSION_NUMERIC@/$drm_ver/" "$drm_dir/dkms.conf.in" | sudo tee "$drm_dir/dkms.conf" >/dev/null
+  # Upstream generates this header at packaging time; the raw source does not ship it.
+  printf '#define VIBESHINE_DRM_VERSION "%s"\n' "$drm_ver" | sudo tee "$drm_dir/vibeshine_drm_version.h" >/dev/null
   sudo dkms remove "vibeshine-drm/$drm_ver" --all >/dev/null 2>&1 || true
   sudo dkms install "vibeshine-drm/$drm_ver" -k "$build_for" --force || { warn "driver build failed"; return 1; }
   sudo install -D -m 0755 -o root -g root "$here/spout-vdisplay" "$helper"
