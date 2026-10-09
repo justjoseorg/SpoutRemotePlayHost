@@ -244,6 +244,22 @@ func (m *Manager) Valid(token string) bool {
 	return ok == 1
 }
 
+// ClientID returns the id of the paired client owning token, or "" if none.
+func (m *Manager) ClientID(token string) string {
+	if token == "" {
+		return ""
+	}
+	want := []byte(hex.EncodeToString(hashHex(token)))
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, c := range m.clients {
+		if subtle.ConstantTimeCompare([]byte(c.TokenHash), want) == 1 {
+			return c.ID
+		}
+	}
+	return ""
+}
+
 // Clients lists paired devices without their token hashes.
 func (m *Manager) Clients() []Client {
 	m.mu.Lock()

@@ -24,6 +24,8 @@ type Server struct {
 	disp    display.Manager
 	version string
 	pair    *pairing.Manager
+	// owner is the device whose config the active virtual monitor was created from.
+	owner string
 }
 
 // New returns the HTTP handler. Requests from non-loopback addresses must send "Authorization: Bearer <token>".
@@ -35,6 +37,7 @@ func New(cfg *config.Store, disp display.Manager, version, token string, pair *p
 	mux.HandleFunc("PUT /api/config", s.putConfig)
 	mux.HandleFunc("POST /api/monitor/create", s.create)
 	mux.HandleFunc("POST /api/monitor/destroy", s.destroy)
+	mux.HandleFunc("GET /api/discover", s.discover)
 	mux.HandleFunc("POST /api/pair/request", s.pairRequest)
 	mux.HandleFunc("POST /api/pair/poll", s.pairPoll)
 	mux.HandleFunc("GET /api/pair/pending", localOnly(s.pairPending))
@@ -61,8 +64,19 @@ func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{"version": s.version, "monitorActive": s.disp.Active()})
 }
 
-func (s *Server) getConfig(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, 200, s.cfg.Get())
+// deviceID identifies the paired device making the request; "" for the local UI or the master token.
+func (s *Server) deviceID(r *http.Request) string {
+	if s.pair == nil {
+		return ""
+	}
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		return s.pair.ClientID(auth[7:])
+	}
+	return ""
+}
+
+func (s *Server) getConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, s.cfg.GetFor(s.deviceID(r)))
 }
 
 func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
@@ -73,13 +87,14 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	old := s.cfg.Get()
-	if err := s.cfg.Set(m); err != nil {
+	id := s.deviceID(r)
+	old := s.cfg.GetFor(id)
+	if err := s.cfg.SetFor(id, m); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
 	// Re-create a live virtual display so resolution/refresh changes apply immediately.
-	if s.disp.Active() && (old.Width != m.Width || old.Height != m.Height || old.RefreshHz != m.RefreshHz) {
+	if s.disp.Active() && s.owner == id && (old.Width != m.Width || old.Height != m.Height || old.RefreshHz != m.RefreshHz) {
 		if err := s.disp.Create(display.Mode{Width: m.Width, Height: m.Height, RefreshHz: m.RefreshHz}); err != nil {
 			writeErr(w, 500, fmt.Errorf("saved, but could not apply to the active monitor: %w", err))
 			return
@@ -88,8 +103,9 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, m)
 }
 
-func (s *Server) create(w http.ResponseWriter, _ *http.Request) {
-	c := s.cfg.Get()
+func (s *Server) create(w http.ResponseWriter, r *http.Request) {
+	id := s.deviceID(r)
+	c := s.cfg.GetFor(id)
 	err := s.disp.Create(display.Mode{Width: c.Width, Height: c.Height, RefreshHz: c.RefreshHz})
 	if errors.Is(err, display.ErrNotImplemented) {
 		writeErr(w, 501, err)
@@ -99,6 +115,7 @@ func (s *Server) create(w http.ResponseWriter, _ *http.Request) {
 		writeErr(w, 500, err)
 		return
 	}
+	s.owner = id
 	writeJSON(w, 200, map[string]bool{"monitorActive": true})
 }
 
@@ -124,6 +141,10 @@ func requireToken(next http.Handler, token string, pair *pairing.Manager) http.H
 			return
 		}
 		// Pairing endpoints are reachable without a token; they are gated by the PIN confirmed on this PC.
+		if r.Method == http.MethodGet && r.URL.Path == "/api/discover" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if r.Method == http.MethodPost && (r.URL.Path == "/api/pair/request" || r.URL.Path == "/api/pair/poll") {
 			next.ServeHTTP(w, r)
 			return

@@ -140,5 +140,12 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, err)
 		return
 	}
+	_ = s.cfg.Forget(r.PathValue("id"))
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// discover lets clients find this host on the LAN. It reveals only the app name, hostname and version.
+func (s *Server) discover(w http.ResponseWriter, _ *http.Request) {
+	name, _ := os.Hostname()
+	writeJSON(w, http.StatusOK, map[string]string{"app": "spout-host", "name": name, "version": s.version})
 }

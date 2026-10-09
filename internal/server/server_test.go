@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -228,5 +229,44 @@ func TestPairingLockoutAfterWrongPINs(t *testing.T) {
 	}
 	if c := do(h, "POST", "/api/pair/confirm", `{"id":"`+id+`","pin":"0001"}`).Code; c != 404 {
 		t.Fatalf("request should be cancelled after 5 wrong PINs, got %d", c)
+	}
+}
+
+func TestDiscoverIsPublicAndMinimal(t *testing.T) {
+	h, _ := setup(t)
+	rec := doFrom(h, "192.168.1.9:1", "GET", "/api/discover", "", "")
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"app":"spout-host"`) {
+		t.Fatalf("discover: %d %s", rec.Code, rec.Body)
+	}
+	if strings.Contains(rec.Body.String(), "tok") {
+		t.Fatal("discover must not leak secrets")
+	}
+	if rec := doFrom(h, "192.168.1.9:1", "GET", "/api/config", "", ""); rec.Code != 401 {
+		t.Fatalf("config must stay protected: %d", rec.Code)
+	}
+}
+
+func TestPerDeviceMonitorConfig(t *testing.T) {
+	h, _ := setup(t)
+	const remote = "192.168.1.50:5555"
+	salt, pin, secret := "saltsalt1234", "0427", "client-secret"
+	reqBody := `{"name":"Deck","salt":"` + salt + `","pinHash":"` + pairing.PINHash(salt, pin) +
+		`","secretHash":"` + pairing.SecretHash(secret) + `"}`
+	var rq struct{ ID string }
+	_ = json.Unmarshal(doFrom(h, remote, "POST", "/api/pair/request", reqBody, "").Body.Bytes(), &rq)
+	doFrom(h, "127.0.0.1:1", "POST", "/api/pair/confirm", `{"id":"`+rq.ID+`","pin":"`+pin+`"}`, "")
+	var pr struct{ Token string }
+	_ = json.Unmarshal(doFrom(h, remote, "POST", "/api/pair/poll", `{"id":"`+rq.ID+`","secret":"`+secret+`"}`, "").Body.Bytes(), &pr)
+	auth := "Bearer " + pr.Token
+
+	body := `{"width":1920,"height":1080,"refreshHz":120,"autoCreate":true,"codec":"auto"}`
+	if rec := doFrom(h, remote, "PUT", "/api/config", body, auth); rec.Code != 200 {
+		t.Fatalf("put: %d %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(doFrom(h, remote, "GET", "/api/config", "", auth).Body.String(), `"width":1920`) {
+		t.Fatal("device should read back its own config")
+	}
+	if !strings.Contains(doFrom(h, "127.0.0.1:1", "GET", "/api/config", "", "").Body.String(), `"width":1280`) {
+		t.Fatal("default config must be unchanged by a device")
 	}
 }

@@ -42,13 +42,20 @@ func (m Monitor) Validate() error {
 
 // Store persists the monitor config as JSON.
 type Store struct {
-	mu   sync.Mutex
-	path string
-	cur  Monitor
+	mu      sync.Mutex
+	path    string
+	cur     Monitor
+	devices map[string]Monitor
+}
+
+// file is the on-disk layout: the default monitor inline plus one monitor config per paired device.
+type file struct {
+	Monitor
+	Devices map[string]Monitor `json:"devices,omitempty"`
 }
 
 func Open(path string) (*Store, error) {
-	s := &Store{path: path, cur: Default()}
+	s := &Store{path: path, cur: Default(), devices: map[string]Monitor{}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
@@ -56,12 +63,20 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(data, &s.cur); err != nil {
+	f := file{Monitor: Default()}
+	if err := json.Unmarshal(data, &f); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
-	if err := s.cur.Validate(); err != nil {
+	if err := f.Monitor.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid %s: %w", path, err)
 	}
+	for id, m := range f.Devices {
+		if err := m.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid %s device %s: %w", path, id, err)
+		}
+		s.devices[id] = m
+	}
+	s.cur = f.Monitor
 	return s, nil
 }
 
@@ -71,13 +86,54 @@ func (s *Store) Get() Monitor {
 	return s.cur
 }
 
-func (s *Store) Set(m Monitor) error {
+// Set updates the default monitor config.
+func (s *Store) Set(m Monitor) error { return s.SetFor("", m) }
+
+// GetFor returns the monitor config of a paired device, falling back to the default when it has none.
+func (s *Store) GetFor(id string) Monitor {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if m, ok := s.devices[id]; ok && id != "" {
+		return m
+	}
+	return s.cur
+}
+
+// SetFor saves the monitor config of a paired device; an empty id sets the default.
+func (s *Store) SetFor(id string, m Monitor) error {
 	if err := m.Validate(); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	data, err := json.MarshalIndent(m, "", "  ")
+	return s.saveLocked(id, &m)
+}
+
+// Forget removes a device's config, e.g. when it is unpaired.
+func (s *Store) Forget(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.devices[id]; !ok {
+		return nil
+	}
+	return s.saveLocked(id, nil)
+}
+
+// saveLocked applies the change (nil deletes a device) and writes the file; memory changes only on success.
+func (s *Store) saveLocked(id string, m *Monitor) error {
+	f := file{Monitor: s.cur, Devices: map[string]Monitor{}}
+	for k, v := range s.devices {
+		f.Devices[k] = v
+	}
+	switch {
+	case m == nil:
+		delete(f.Devices, id)
+	case id == "":
+		f.Monitor = *m
+	default:
+		f.Devices[id] = *m
+	}
+	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -91,7 +147,7 @@ func (s *Store) Set(m Monitor) error {
 	if err := os.Rename(tmp, s.path); err != nil {
 		return err
 	}
-	s.cur = m
+	s.cur, s.devices = f.Monitor, f.Devices
 	return nil
 }
 
