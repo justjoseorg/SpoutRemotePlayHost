@@ -14,6 +14,7 @@ OutputBaseFilename=SpoutRemotePlayHost-Setup-v{#AppVersion}
 OutputDir=..\..\dist
 Compression=lzma2
 UninstallDisplayIcon={app}\spout-host.exe
+SetupIconFile=..\..\internal\tray\icon.ico
 
 [Components]
 Name: "host"; Description: "SpoutRemotePlayHost"; Types: full compact custom; Flags: fixed
@@ -23,6 +24,14 @@ Name: "driver"; Description: "SudoVDA virtual display driver (adds a self-signed
 Source: "{#HostExe}"; DestDir: "{app}"; Components: host
 Source: "{#DriverDir}\*"; DestDir: "{app}\driver"; Components: driver; Flags: recursesubdirs
 Source: "install-driver.ps1"; DestDir: "{app}\driver"; Components: driver
+
+[INI]
+Filename: "{autoprograms}\Spout Remote Play Host.url"; Section: "InternetShortcut"; Key: "URL"; String: "http://127.0.0.1:47995"
+Filename: "{autoprograms}\Spout Remote Play Host.url"; Section: "InternetShortcut"; Key: "IconFile"; String: "{app}\spout-host.exe"
+Filename: "{autoprograms}\Spout Remote Play Host.url"; Section: "InternetShortcut"; Key: "IconIndex"; String: "0"
+
+[UninstallDelete]
+Type: files; Name: "{autoprograms}\Spout Remote Play Host.url"
 
 [Run]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\driver\install-driver.ps1"""; \

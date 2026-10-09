@@ -11,6 +11,9 @@ set -euo pipefail
 
 bin_dir="${HOME}/.local/bin"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+data_dir="${XDG_DATA_HOME:-$HOME/.local/share}"
+icon_file="$data_dir/icons/hicolor/256x256/apps/spout-remote-play.png"
+desktop_file="$data_dir/applications/spout-remote-play.desktop"
 here="$(cd "$(dirname "$0")" && pwd)"
 
 helper=/usr/local/libexec/spout-vdisplay
@@ -117,7 +120,7 @@ install_driver() {
 
 if [[ "${1:-}" == "--uninstall" ]]; then
   systemctl --user disable --now spout-host.service 2>/dev/null || true
-  rm -f "$unit_dir/spout-host.service" "$bin_dir/spout-host"
+  rm -f "$unit_dir/spout-host.service" "$bin_dir/spout-host" "$icon_file" "$desktop_file"
   if [[ -e "$helper" ]]; then
     sudo "$helper" destroy || true
     sudo rm -f "$helper" "$sudoers"
@@ -137,6 +140,12 @@ src="${1:-$here/spout-host}"
 mkdir -p "$bin_dir" "$unit_dir"
 install -m 0755 "$src" "$bin_dir/spout-host"
 install -m 0644 "$here/spout-host.service" "$unit_dir/spout-host.service"
+if [[ -f "$here/spout-remote-play.png" ]]; then
+  install -D -m 0644 "$here/spout-remote-play.png" "$icon_file"
+  install -D -m 0644 "$here/spout-remote-play.desktop" "$desktop_file"
+  command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -t "$data_dir/icons/hicolor" 2>/dev/null || true
+  command -v update-desktop-database >/dev/null && update-desktop-database -q "$data_dir/applications" 2>/dev/null || true
+fi
 [[ $no_driver == 1 ]] || install_driver || warn "Virtual display is not set up; the host still runs. Re-run ./install.sh after fixing the above."
 systemctl --user daemon-reload
 systemctl --user enable --now spout-host.service
