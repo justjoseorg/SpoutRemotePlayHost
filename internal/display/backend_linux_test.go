@@ -4,6 +4,8 @@ package display
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -58,5 +60,25 @@ func TestLinuxHelperMissing(t *testing.T) {
 	v := &vdisplay{run: func(string, ...string) (string, error) { return "sudo: a password is required", errors.New("exit 1") }}
 	if err := v.create(Mode{1920, 1080, 60}); err == nil || !strings.Contains(err.Error(), "installer") {
 		t.Fatal(err)
+	}
+}
+
+func TestSessionEnvFillsMissingWayland(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "wayland-0"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "wayland-0.lock"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(sessionEnv([]string{"XDG_RUNTIME_DIR=" + dir}), "\n")
+	for _, want := range []string{"WAYLAND_DISPLAY=wayland-0\n", "QT_QPA_PLATFORM=wayland"} {
+		if !strings.Contains(got+"\n", want) {
+			t.Errorf("missing %q in %q", want, got)
+		}
+	}
+	kept := strings.Join(sessionEnv([]string{"XDG_RUNTIME_DIR=" + dir, "WAYLAND_DISPLAY=wayland-9", "QT_QPA_PLATFORM=xcb"}), "\n")
+	if strings.Contains(kept, "wayland-0") || strings.Count(kept, "QT_QPA_PLATFORM") != 1 {
+		t.Errorf("existing values must be kept: %q", kept)
 	}
 }
