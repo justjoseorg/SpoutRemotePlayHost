@@ -57,6 +57,7 @@ This app complements Steam's native Remote Play and makes it better. It does not
 Pair each device once, give it its own monitor settings, and from then on it just works. Together with the [Decky plugin](https://github.com/justjoseorg/SpoutRemotePlay) (Wake-on-LAN, pairing, settings), the flow is: **wake the PC → press play in Steam → stream.**
 
 > **Why "Spout"?** It's a play on **Valve**: a valve controls the flow of steam, and a spout is where the steam comes out. Valve's Steam does the streaming; Spout just gives the stream somewhere to pour, a virtual monitor shaped for your handheld.
+
 ## 📥 Download and install
 
 Get the files from the **[latest release](https://github.com/justjoseorg/SpoutRemotePlayHost/releases/latest)**:
@@ -88,7 +89,7 @@ Steam creates its own virtual display for Remote Play using the SudoVDA driver t
 1. Install the host with the **SudoVDA virtual display driver** option ticked (or keep an existing SudoVDA).
 2. In Steam, join the client beta: **Steam > Settings > Interface > Client Beta Participation**, then restart Steam.
 3. In **Steam > Settings > Remote Play > Advanced Host Options**, enable the virtual display option if Steam offers it.
-4. Stream from your handheld. The host waits up to 20 seconds for Steam's display (it recognises it by the SudoVDA name), turns the other displays off and restores them when the session ends. If Steam's display never appears, your displays are left on.
+4. Stream from your handheld. The host waits up to 20 seconds for Steam's display (Steam names it after the device; the host recognises it by SudoVDA's monitor ID, `SMK`), turns the other displays off and restores them when the session ends. If Steam's display never appears, your displays are left on.
 
 Untested on Windows: how the host recognises Steam's display, and the restore.
 
