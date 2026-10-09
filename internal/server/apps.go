@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/apps"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/artwork"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlib"
 )
 
@@ -36,7 +37,7 @@ func (s *Server) appList() map[string]any {
 		v.InSteam = st.Ready && a.SteamAppID != 0 && s.lib.Exists(a.SteamAppID)
 		out = append(out, v)
 	}
-	return map[string]any{"apps": out, "steam": st}
+	return map[string]any{"apps": out, "steam": st, "artwork": s.art != nil && s.art.HasKey()}
 }
 
 // listApps is readable by paired devices so the Decky plugin can sync the catalog.
@@ -85,7 +86,68 @@ func (s *Server) addToSteam(a apps.App) error {
 	if err != nil {
 		return err
 	}
-	return s.apps.SetSteamAppID(a.ID, id)
+	if err := s.apps.SetSteamAppID(a.ID, id); err != nil {
+		return err
+	}
+	s.applyArtwork(a.Name, id)
+	return nil
+}
+
+// applyArtwork is best effort: a shortcut without art is still usable.
+func (s *Server) applyArtwork(name string, id uint32) error {
+	if s.art == nil {
+		return errors.New("artwork is not enabled")
+	}
+	imgs, err := s.art.Find(name)
+	if err != nil {
+		return err
+	}
+	for _, im := range imgs {
+		if err := s.lib.SetArtwork(id, im.Kind, im.Ext, im.Data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) steamArtwork(w http.ResponseWriter, r *http.Request) {
+	if !s.appsEnabled(w) {
+		return
+	}
+	a, err := s.apps.Get(r.PathValue("id"))
+	if err != nil || a.SteamAppID == 0 || !s.lib.Exists(a.SteamAppID) {
+		writeErr(w, http.StatusNotFound, errors.New("app is not in Steam"))
+		return
+	}
+	if err := s.applyArtwork(a.Name, a.SteamAppID); err != nil {
+		writeErr(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, 200, s.appList())
+}
+
+func (s *Server) setArtworkKey(w http.ResponseWriter, r *http.Request) {
+	if s.art == nil {
+		writeErr(w, http.StatusNotImplemented, errors.New("artwork is not enabled"))
+		return
+	}
+	var b struct {
+		Key string `json:"key"`
+	}
+	if !decodeBody(w, r, &b) {
+		return
+	}
+	if err := s.art.SetKey(b.Key); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, 200, s.appList())
+}
+
+// WithArtwork enables SteamGridDB artwork for shortcuts added to Steam.
+func (s *Server) WithArtwork(c *artwork.Client) *Server {
+	s.art = c
+	return s
 }
 
 func (s *Server) removeFromSteam(a apps.App) error {

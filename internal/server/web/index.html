@@ -74,6 +74,7 @@
   <h2>Apps in Steam</h2>
   <p><small>Programs added here appear in this PC's Steam library, so your paired devices can stream them.</small></p>
   <div id="steamnote"></div>
+  <div id="artnote"></div>
   <div id="apps"></div>
   <form id="appform">
     <div class="row">
@@ -233,6 +234,15 @@ function renderApps(r) {
         catch (err) { msg(err.message); } } }));
     note.replaceChildren(card);
   }
+  const art = $("#artnote");
+  if (r.artwork) art.replaceChildren(el("small", "Artwork from SteamGridDB is on."));
+  else {
+    const key = el("input", "", { placeholder: "SteamGridDB API key", type: "password" });
+    const save = el("button", "Save key", { onclick: async () => {
+      try { renderApps(await api("PUT", "/api/steam/artwork-key", { key: key.value })); msg("Saved"); }
+      catch (err) { msg(err.message); } } });
+    art.replaceChildren(el("small", "Optional: a free SteamGridDB API key (steamgriddb.com/profile/preferences/api) fetches icons and covers."), key, save);
+  }
   const cards = r.apps.map((a) => {
     const card = el("div", "", { className: "card" });
     card.append(el("span", a.name, { className: "name" }),
@@ -242,6 +252,7 @@ function renderApps(r) {
     const act = async (method, path) => {
       try { renderApps(await api(method, path)); } catch (err) { msg(err.message); refreshApps(); }
     };
+    if (a.inSteam && r.artwork) card.append(el("button", "Refresh artwork", { onclick: () => act("POST", "/api/apps/" + a.id + "/artwork") }));
     card.append(a.inSteam
       ? el("button", "Remove from Steam", { onclick: () => act("DELETE", "/api/apps/" + a.id + "/steam") })
       : el("button", "Add to Steam", { className: "primary", onclick: () => act("POST", "/api/apps/" + a.id + "/steam") }),

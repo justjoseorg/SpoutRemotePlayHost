@@ -57,6 +57,7 @@ The **Apps** tab of the web UI adds programs to this PC's Steam library (as non-
 
 - Steam is controlled through its local debug port. Click **Enable Steam integration** once, then restart Steam.
 - Adding, removing and deleting apps works only from this PC (loopback), because it runs programs on the host. Paired devices can only read the list.
+- Optional: save a free [SteamGridDB](https://www.steamgriddb.com/profile/preferences/api) API key in the Apps tab and new shortcuts get a matching cover, hero, logo and icon. Setting artwork on Steam is verified on Linux; the SteamGridDB lookup itself is only unit tested against a fake server.
 - Verified on Linux Steam: add and remove show up in the library. Whether the Steam Link client lists them is not yet verified.
 
 ## Pairing

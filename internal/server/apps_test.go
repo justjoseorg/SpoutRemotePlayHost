@@ -30,9 +30,10 @@ func (f *fakeLib) Add(s steamlib.Shortcut) (uint32, error) {
 	f.have[f.next] = s
 	return f.next, nil
 }
-func (f *fakeLib) Remove(id uint32) error { delete(f.have, id); return nil }
-func (f *fakeLib) Exists(id uint32) bool  { _, ok := f.have[id]; return ok }
-func (f *fakeLib) EnableDebugging() error { f.debug = true; return nil }
+func (f *fakeLib) Remove(id uint32) error                       { delete(f.have, id); return nil }
+func (f *fakeLib) Exists(id uint32) bool                        { _, ok := f.have[id]; return ok }
+func (f *fakeLib) SetArtwork(uint32, int, string, []byte) error { return nil }
+func (f *fakeLib) EnableDebugging() error                       { f.debug = true; return nil }
 
 func appsServer(t *testing.T) (*Server, *fakeLib) {
 	t.Helper()

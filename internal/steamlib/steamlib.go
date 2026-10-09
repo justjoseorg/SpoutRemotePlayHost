@@ -4,6 +4,7 @@ package steamlib
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +38,7 @@ type Library interface {
 	Add(Shortcut) (uint32, error)
 	Remove(id uint32) error
 	Exists(id uint32) bool
+	SetArtwork(id uint32, kind int, ext string, data []byte) error
 	EnableDebugging() error
 }
 
@@ -216,4 +218,11 @@ func (c *CEF) Exists(id uint32) bool {
 	raw, err := c.eval(fmt.Sprintf("appStore.GetAppOverviewByAppID(%d)!=null", id))
 	var ok bool
 	return err == nil && json.Unmarshal(raw, &ok) == nil && ok
+}
+
+// SetArtwork sets custom artwork; kind is Steam's asset type (0 portrait, 1 hero, 2 logo, 3 wide, 4 icon).
+func (c *CEF) SetArtwork(id uint32, kind int, ext string, data []byte) error {
+	_, err := c.eval(fmt.Sprintf("SteamClient.Apps.SetCustomArtworkForApp(%d,%s,%s,%d)",
+		id, js(base64.StdEncoding.EncodeToString(data)), js(ext), kind))
+	return err
 }
