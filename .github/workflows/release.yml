@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+# Serialize releases so two merged PRs can't compute the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   version:
     if: github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no-release')

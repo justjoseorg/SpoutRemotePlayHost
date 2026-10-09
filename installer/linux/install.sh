@@ -5,7 +5,7 @@
 # Nonary/libvirtualdisplay, MIT/GPL-2.0) and a root helper that only the installing
 # user may run via sudo. Needs Linux 6.16+ and KDE Plasma (kscreen-doctor); dkms and kernel headers are installed
 # automatically (Fedora/Arch/Debian/Ubuntu/openSUSE). If headers for the running kernel aren't
-# available it builds for the newest installed kernel and asks you to reboot.
+# available (e.g. Arch after a system update) it builds for the newest installed kernel and asks you to reboot.
 # Use --no-driver to skip that part.
 set -euo pipefail
 
@@ -22,13 +22,23 @@ drm_dir=/usr/src/vibeshine-drm-$drm_ver
 say() { printf '==> %s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
 
+# Fedora's repos only carry headers for the newest kernel; older exact versions live in Koji.
+fedora_koji_headers() {
+  local kver="$1" nvr arch ver rel
+  arch="${kver##*.}"; nvr="${kver%.*}"; ver="${nvr%%-*}"; rel="${nvr#*-}"
+  sudo dnf install -y "https://kojipkgs.fedoraproject.org/packages/kernel/$ver/$rel/$arch/kernel-devel-$ver-$rel.$arch.rpm"
+}
+
 # Installs dkms and kernel headers using the distro's package manager.
 install_build_deps() {
   local kver="$1" id like pkgbase
   id="$(. /etc/os-release 2>/dev/null; echo "${ID:-}")"; like="$(. /etc/os-release 2>/dev/null; echo "${ID_LIKE:-}")"
   case " $id $like " in
     *" fedora "*|*" rhel "*)
-      sudo dnf install -y dkms "kernel-devel-$kver" 2>/dev/null || sudo dnf install -y dkms kernel-devel ;;
+      sudo dnf install -y dkms
+      if ! has_headers "$kver"; then
+        sudo dnf install -y "kernel-devel-$kver" 2>/dev/null || fedora_koji_headers "$kver" || true
+      fi ;;
     *" arch "*)
       pkgbase="$(pacman -Qqo "/usr/lib/modules/$kver/vmlinuz" 2>/dev/null || true)"
       sudo pacman -S --needed --noconfirm dkms "${pkgbase:-linux}-headers" ;;
