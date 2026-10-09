@@ -25,13 +25,23 @@ Name: "autostart"; Description: "Start automatically when I sign in"
 Name: "lan"; Description: "Allow the Decky plugin to connect over the local network (listens on port 47995, adds a firewall rule; other machines still need a token)"
 
 [Files]
-Source: "{#HostExe}"; DestDir: "{app}"; Components: host
-Source: "task.ps1"; DestDir: "{app}"; Components: host
-Source: "{#DriverDir}\*"; DestDir: "{app}\driver"; Components: driver; Flags: recursesubdirs
-Source: "install-driver.ps1"; DestDir: "{app}\driver"; Components: driver
+Source: "{#HostExe}"; DestDir: "{app}"; Components: host; Flags: ignoreversion
+Source: "task.ps1"; DestDir: "{app}"; Components: host; Flags: ignoreversion
+Source: "{#DriverDir}\*"; DestDir: "{app}\driver"; Components: driver; Flags: recursesubdirs ignoreversion
+Source: "install-driver.ps1"; DestDir: "{app}\driver"; Components: driver; Flags: ignoreversion
 
 [InstallDelete]
+; Remove files from a previous install. The driver marker (installed-by-spout) is kept so
+; uninstall still knows whether the driver is ours.
 Type: files; Name: "{autoprograms}\Spout Remote Play Host.url"
+Type: files; Name: "{app}\spout-host.exe"
+Type: files; Name: "{app}\task.ps1"
+Type: files; Name: "{app}\driver\*.inf"
+Type: files; Name: "{app}\driver\*.cat"
+Type: files; Name: "{app}\driver\*.sys"
+Type: files; Name: "{app}\driver\*.cer"
+Type: files; Name: "{app}\driver\*.ps1"
+Type: files; Name: "{app}\driver\*.txt"
 
 [Icons]
 Name: "{autoprograms}\Spout Remote Play Host"; Filename: "{app}\spout-host.exe"; Parameters: "{code:HostArgs}"
@@ -68,12 +78,21 @@ begin
   if WizardIsTaskSelected('lan') then Result := '-listen 0.0.0.0:47995';
 end;
 
-// Stop a running host so its exe can be replaced on upgrade.
+// Stop a running host and remove its exe, so an upgrade never keeps the old one.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  rc: Integer;
+  rc, i: Integer;
+  exe: String;
 begin
-  Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN SpoutRemotePlayHost', '', SW_HIDE, ewWaitUntilTerminated, rc);
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM spout-host.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
   Result := '';
+  exe := ExpandConstant('{app}\spout-host.exe');
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN SpoutRemotePlayHost', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  for i := 1 to 20 do
+  begin
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM spout-host.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
+    if not FileExists(exe) or DeleteFile(exe) then
+      Exit;
+    Sleep(500);
+  end;
+  Result := 'Could not stop the running Spout Remote Play Host (' + exe + ' is in use). Close it and run Setup again.';
 end;
