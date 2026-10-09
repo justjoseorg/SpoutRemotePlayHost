@@ -11,10 +11,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/apps"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/session"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlib"
 )
 
 //go:embed web
@@ -26,6 +28,8 @@ type Server struct {
 	version string
 	pair    *pairing.Manager
 	sess    *session.Controller
+	apps    *apps.Store
+	lib     steamlib.Library
 	handler http.Handler
 }
 
@@ -61,6 +65,13 @@ func NewServer(cfg *config.Store, disp display.Manager, version, token string, p
 	mux.HandleFunc("GET /api/clients/{id}/config", localOnly(s.clientConfig))
 	mux.HandleFunc("PUT /api/clients/{id}/config", localOnly(s.putClientConfig))
 	mux.HandleFunc("DELETE /api/clients/{id}/config", localOnly(s.resetClientConfig))
+	mux.HandleFunc("GET /api/apps", s.listApps)
+	// Adding or removing apps runs programs on this PC, so only the local UI may do it.
+	mux.HandleFunc("POST /api/apps", localOnly(s.addApp))
+	mux.HandleFunc("DELETE /api/apps/{id}", localOnly(s.deleteApp))
+	mux.HandleFunc("POST /api/apps/{id}/steam", localOnly(s.steamAdd))
+	mux.HandleFunc("DELETE /api/apps/{id}/steam", localOnly(s.steamRemove))
+	mux.HandleFunc("POST /api/steam/enable-debugging", localOnly(s.enableSteam))
 	sub, _ := fs.Sub(webFS, "web")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 	s.handler = requireToken(mux, token, pair)

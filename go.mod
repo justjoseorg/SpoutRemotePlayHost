@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	fyne.io/systray v1.12.2
+	github.com/coder/websocket v1.8.15
 	golang.org/x/sys v0.28.0
 )
 

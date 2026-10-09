@@ -11,12 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/apps"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/hotkey"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/notify"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/server"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlib"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlog"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/tray"
 )
@@ -72,7 +74,11 @@ func main() {
 		}
 	}()
 
-	srv := server.NewServer(store, disp, version, token, pair)
+	catalog, err := apps.Open(filepath.Join(filepath.Dir(*cfgPath), "apps.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	srv := server.NewServer(store, disp, version, token, pair).WithApps(catalog, steamlib.NewCEF())
 	handler := srv.Handler()
 	go steamlog.Watch(steamlog.Candidates(), time.Second, stop, func(ev steamlog.Event) {
 		if !ev.Start {
