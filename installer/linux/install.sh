@@ -3,7 +3,9 @@
 # Usage: ./install.sh [path/to/spout-host]   |   ./install.sh --uninstall
 # Also installs the vibeshine_drm virtual display kernel module (DKMS, built from
 # Nonary/libvirtualdisplay, MIT/GPL-2.0) and a root helper that only the installing
-# user may run via sudo. Needs Linux 6.16+, kernel headers, dkms, and KDE Plasma (kscreen-doctor).
+# user may run via sudo. Needs Linux 6.16+ and KDE Plasma (kscreen-doctor); dkms and kernel headers are installed
+# automatically (Fedora/Arch/Debian/Ubuntu/openSUSE). If headers for the running kernel aren't
+# available it builds for the newest installed kernel and asks you to reboot.
 # Use --no-driver to skip that part.
 set -euo pipefail
 
@@ -17,21 +19,83 @@ drm_src=3083d210b55fba4b886e5c634e6abee0942201d4 # Nonary/libvirtualdisplay
 drm_ver=1.0.0
 drm_dir=/usr/src/vibeshine-drm-$drm_ver
 
+say() { printf '==> %s\n' "$*"; }
+warn() { printf 'warning: %s\n' "$*" >&2; }
+
+# Installs dkms and kernel headers using the distro's package manager.
+install_build_deps() {
+  local kver="$1" id like pkgbase
+  id="$(. /etc/os-release 2>/dev/null; echo "${ID:-}")"; like="$(. /etc/os-release 2>/dev/null; echo "${ID_LIKE:-}")"
+  case " $id $like " in
+    *" fedora "*|*" rhel "*)
+      sudo dnf install -y dkms "kernel-devel-$kver" 2>/dev/null || sudo dnf install -y dkms kernel-devel ;;
+    *" arch "*)
+      pkgbase="$(pacman -Qqo "/usr/lib/modules/$kver/vmlinuz" 2>/dev/null || true)"
+      sudo pacman -S --needed --noconfirm dkms "${pkgbase:-linux}-headers" ;;
+    *" debian "*|*" ubuntu "*)
+      sudo apt-get install -y dkms "linux-headers-$kver" ;;
+    *" suse "*)
+      sudo zypper --non-interactive install dkms kernel-default-devel ;;
+    *) warn "unknown distribution; install dkms and the kernel headers for $kver yourself" ; return 1 ;;
+  esac
+}
+
+has_headers() { [[ -e "/lib/modules/$1/build" ]]; }
+
+# Newest installed kernel that has headers (used when the running one has none).
+newest_kernel_with_headers() {
+  local d v
+  for d in $(ls -1d /lib/modules/*/ 2>/dev/null | sort -V -r); do
+    v="$(basename "$d")"
+    has_headers "$v" && { echo "$v"; return 0; }
+  done
+  return 1
+}
+
 install_driver() {
-  command -v dkms >/dev/null || { echo "dkms is required (e.g. sudo dnf install dkms kernel-devel / sudo pacman -S dkms linux-headers)" >&2; return 1; }
-  command -v kscreen-doctor >/dev/null || echo "warning: kscreen-doctor not found; the virtual display needs KDE Plasma" >&2
+  local kver build_for
+  kver="$(uname -r)"
+  sudo -v || { warn "sudo is required to install the driver"; return 1; }
+  if [[ "$(printf '%s\n6.16\n' "${kver%%[-+]*}" | sort -V | head -1)" != 6.16 ]]; then
+    warn "the virtual display driver needs Linux 6.16 or newer (running $kver); skipping it"
+    return 1
+  fi
+  if ! command -v kscreen-doctor >/dev/null; then
+    warn "kscreen-doctor not found: the virtual display needs KDE Plasma. Continuing."
+  fi
+  say "Installing the virtual display driver (needs sudo; builds a kernel module with DKMS)"
+  if ! command -v dkms >/dev/null || ! has_headers "$kver"; then
+    say "Installing build dependencies (dkms, kernel headers)"
+    install_build_deps "$kver" || true
+  fi
+  command -v dkms >/dev/null || { warn "dkms is not installed; skipping the virtual display driver"; return 1; }
+  build_for="$kver"
+  if ! has_headers "$kver"; then
+    # The repos may only carry headers for a newer kernel than the one running.
+    build_for="$(newest_kernel_with_headers)" || { warn "no kernel headers found for $kver; skipping the driver"; return 1; }
+    warn "headers for the running kernel ($kver) are unavailable; building for $build_for instead"
+  fi
+
   local tmp; tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
   curl -fsSL "https://github.com/Nonary/libvirtualdisplay/archive/${drm_src}.tar.gz" | tar xz -C "$tmp" --strip-components=1
   sudo rm -rf "$drm_dir"
   sudo cp -r "$tmp/linux/vibeshine-drm" "$drm_dir"
   sudo sed "s/@PROJECT_VERSION_NUMERIC@/$drm_ver/" "$drm_dir/dkms.conf.in" | sudo tee "$drm_dir/dkms.conf" >/dev/null
   sudo dkms remove "vibeshine-drm/$drm_ver" --all >/dev/null 2>&1 || true
-  sudo dkms install "vibeshine-drm/$drm_ver" --force
+  sudo dkms install "vibeshine-drm/$drm_ver" -k "$build_for" --force || { warn "driver build failed"; return 1; }
   sudo install -D -m 0755 -o root -g root "$here/spout-vdisplay" "$helper"
   printf '%s ALL=(root) NOPASSWD: %s\n' "$(id -un)" "$helper" | sudo tee "$sudoers" >/dev/null
   sudo chmod 0440 "$sudoers"
-  sudo visudo -cf "$sudoers" >/dev/null
-  sudo modprobe vibeshine_drm create_default_dev=0
+  sudo visudo -cf "$sudoers" >/dev/null || { sudo rm -f "$sudoers"; warn "invalid sudoers entry removed"; return 1; }
+
+  if [[ "$build_for" != "$kver" ]]; then
+    warn "REBOOT into kernel $build_for to enable the virtual display (the host works now; the monitor will appear after the reboot)."
+  elif ! sudo modprobe vibeshine_drm create_default_dev=0; then
+    warn "driver built but could not be loaded. With Secure Boot enabled, enroll the DKMS key (sudo mokutil --import /var/lib/dkms/mok.pub) and reboot."
+    return 1
+  else
+    say "Virtual display driver loaded"
+  fi
 }
 
 if [[ "${1:-}" == "--uninstall" ]]; then
@@ -56,7 +120,7 @@ src="${1:-$here/spout-host}"
 mkdir -p "$bin_dir" "$unit_dir"
 install -m 0755 "$src" "$bin_dir/spout-host"
 install -m 0644 "$here/spout-host.service" "$unit_dir/spout-host.service"
-[[ $no_driver == 1 ]] || install_driver
+[[ $no_driver == 1 ]] || install_driver || warn "Virtual display is not set up; the host still runs. Re-run ./install.sh after fixing the above."
 systemctl --user daemon-reload
 systemctl --user enable --now spout-host.service
 echo "Installed. UI: http://127.0.0.1:47995"
