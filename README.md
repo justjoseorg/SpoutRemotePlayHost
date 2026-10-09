@@ -34,6 +34,8 @@ GOOS=windows GOARCH=amd64 go build ./cmd/spout-host
 
 ## Releases
 
+Windows: download `SpoutRemotePlayHost-Setup-v*.exe` from the latest release. It installs the host, the SudoVDA virtual display driver and a tray icon. Linux: `spout-host-v*-linux-amd64.tar.gz` (run `install.sh`).
+
 Merging a PR into `main` publishes a release automatically. `MAJOR.MINOR` is set by hand in the `VERSION` file; the patch number is auto-incremented per merge (e.g. `0.1.0`, `0.1.1`, ...). Edit `VERSION` in a PR to start a new minor/major. Add the `no-release` label to a PR to skip releasing.
 
 ## Pairing
