@@ -1,3 +1,3 @@
-module github.com/justjoseorg/SpigotRemotePlay-Companion
+module github.com/justjoseorg/SpigotRemotePlayHost
 
 go 1.23.4

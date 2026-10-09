@@ -1,6 +1,6 @@
-# SpigotRemotePlay Companion
+# SpigotRemotePlay Host
 
-Host-side companion for the [SpigotRemotePlay](https://github.com/justjoseorg/SpigotRemotePlay) Decky plugin. Targets Windows and Linux (x86_64).
+Host-side app for the [SpigotRemotePlay](https://github.com/justjoseorg/SpigotRemotePlay) Decky plugin. Targets Windows and Linux (x86_64).
 
 ## Goal
 
@@ -21,8 +21,8 @@ Scaffold only. Nothing here creates a virtual display yet.
 ## Build
 
 ```bash
-go build ./cmd/spigot-companion
-GOOS=windows GOARCH=amd64 go build ./cmd/spigot-companion
+go build ./cmd/spigot-host
+GOOS=windows GOARCH=amd64 go build ./cmd/spigot-host
 ```
 
 ## Releases
