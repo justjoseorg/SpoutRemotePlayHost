@@ -63,6 +63,7 @@ func NewServer(cfg *config.Store, disp display.Manager, version, token string, p
 	mux.HandleFunc("POST /api/pair/confirm", localOnly(s.pairConfirm))
 	mux.HandleFunc("DELETE /api/pair/pending/{id}", localOnly(s.pairDeny))
 	mux.HandleFunc("GET /api/clients", localOnly(s.clients))
+	mux.HandleFunc("GET /api/steam/devices", localOnly(s.listSteamDevices))
 	mux.HandleFunc("DELETE /api/clients/{id}", localOnly(s.revoke))
 	mux.HandleFunc("GET /api/clients/{id}/config", localOnly(s.clientConfig))
 	mux.HandleFunc("PUT /api/clients/{id}/config", localOnly(s.putClientConfig))
