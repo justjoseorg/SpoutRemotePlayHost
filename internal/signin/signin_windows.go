@@ -33,8 +33,9 @@ const (
 	exitDesktop   = 4
 	exitSendInput = 5
 
-	vkReturn  = 0x0D
-	vkControl = 0x11
+	vkBack   = 0x08
+	vkReturn = 0x0D
+	vkSpace  = 0x20
 )
 
 var (
@@ -220,11 +221,18 @@ func TypeFromStdin() int {
 		return exitDesktop
 	}
 
-	// A key press lifts the lock screen picture; Ctrl types nothing into the PIN box.
-	if !tap(vkControl) {
+	// Space lifts the lock screen picture (Ctrl doesn't). If the PIN box was
+	// already showing, the Backspaces clear the space and anything typed before.
+	if !tap(vkSpace) {
 		return exitSendInput
 	}
 	time.Sleep(1500 * time.Millisecond)
+	for i := 0; i < 34; i++ {
+		if !tap(vkBack) {
+			return exitSendInput
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	for _, c := range pin {
 		if !tap(uint16(c)) { // VK codes for 0-9 are their ASCII digits
 			return exitSendInput
@@ -248,21 +256,36 @@ func wtsQuery(session, class uint32) []byte {
 	return append([]byte(nil), unsafe.Slice(buf, n)...)
 }
 
-// signedOutOrLocked reports whether the console session has no user, or its user is locked.
+// signedOutOrLocked reports whether the console session has no user, or LogonUI
+// (the lock and sign-in screen) is showing in it. The WTS lock flag isn't used:
+// its values are reversed on some Windows builds.
 func signedOutOrLocked(session uint32) bool {
-	const wtsUserName, wtsSessionInfoEx = 5, 25
+	const wtsUserName = 5
 	name := wtsQuery(session, wtsUserName)
 	if len(name) < 2 || name[0] == 0 && name[1] == 0 {
 		return true
 	}
-	// WTSINFOEXW: Level, then WTSINFOEX_LEVEL1_W {SessionId, SessionState, SessionFlags, ...}.
-	info := wtsQuery(session, wtsSessionInfoEx)
-	if len(info) < 16 {
+	return processInSession("logonui.exe", session)
+}
+
+func processInSession(exe string, session uint32) bool {
+	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
 		return false
 	}
-	const wtsSessionStateLock = 0
-	flags := int32(uint32(info[12]) | uint32(info[13])<<8 | uint32(info[14])<<16 | uint32(info[15])<<24)
-	return flags == wtsSessionStateLock
+	defer windows.CloseHandle(snap)
+	var e windows.ProcessEntry32
+	e.Size = uint32(unsafe.Sizeof(e))
+	for err = windows.Process32First(snap, &e); err == nil; err = windows.Process32Next(snap, &e) {
+		if !strings.EqualFold(windows.UTF16ToString(e.ExeFile[:]), exe) {
+			continue
+		}
+		var s uint32
+		if windows.ProcessIdToSessionId(e.ProcessID, &s) == nil && s == session {
+			return true
+		}
+	}
+	return false
 }
 
 func desktopName(d uintptr) string {
