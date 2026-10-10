@@ -35,6 +35,7 @@
 - [📺 Monitor config](#-monitor-config)
 - [📡 How it knows a stream started](#-how-it-knows-a-stream-started)
 - [📱 Android and other Steam Link devices](#-android-and-other-steam-link-devices)
+- [⏰ Wake from away](#-wake-from-away)
 - [🧩 Apps](#-apps)
 - [🔧 Build](#-build)
 - [🙏 Credits](#-credits)
@@ -53,6 +54,7 @@ This app complements Steam's native Remote Play and makes it better. It does not
 | 🌑 **Other displays off** (Windows) | Every other display is turned off during the session, except the ones you keep on. The previous layout is restored when it ends. Linux doesn't turn displays off yet. |
 | 🔐 **Paired devices only** | Unpaired clients never get a monitor. |
 | 🧩 **Apps** | Add programs to Steam from the web UI, with optional SteamGridDB artwork. |
+| ⏰ **Wake relay** | A paired device away from home (for example over WireGuard) can ask this host to wake another PC on its network. See [Wake from away](#-wake-from-away). |
 
 Pair each device once, give it its own monitor settings, and from then on it just works. Together with the [Decky plugin](https://github.com/justjoseorg/SpoutRemotePlay) (Wake-on-LAN, pairing, settings), the flow is: **wake the PC → press play in Steam → stream.**
 
@@ -152,6 +154,10 @@ No Android app is needed: Steam Link already streams. The Devices tab has an **O
 - Pair the device in Steam first.
 - The list also shows other PCs Steam can see; ignore those.
 - The device list is verified against the real Steam on Linux; an actual Android stream has not been tried yet.
+
+## ⏰ Wake from away
+
+Wake-on-LAN packets are broadcasts, which stay on the local network: a handheld connected home over a VPN such as WireGuard can't wake a PC by itself. The host relays instead. `POST /api/wake` with `{"mac": "aa:bb:cc:dd:ee:ff"}` and a paired device's token makes the host send the magic packet on every network it's on. The Decky plugin does this automatically: when you wake a PC, it also asks every other paired PC that's online to send the packet. Something at home has to be on for this, such as a second PC running the host.
 
 ## 🧩 Apps
 

@@ -385,3 +385,26 @@ func TestDisplaysKeepList(t *testing.T) {
 		t.Fatalf("unsupported: %s", out)
 	}
 }
+
+func TestWakeRelay(t *testing.T) {
+	h, _ := setup(t)
+	remote := func(auth, body string) int {
+		r := httptest.NewRequest("POST", "/api/wake", strings.NewReader(body))
+		r.RemoteAddr = "192.168.10.13:5555"
+		if auth != "" {
+			r.Header.Set("Authorization", auth)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec.Code
+	}
+	if c := remote("", `{"mac":"10:ff:e0:32:86:cb"}`); c != 401 {
+		t.Errorf("no token: %d", c)
+	}
+	if c := remote("Bearer tok", `{"mac":"nope"}`); c != 400 {
+		t.Errorf("bad MAC: %d", c)
+	}
+	if c := remote("Bearer tok", `{"mac":"02:00:00:00:00:01"}`); c != 200 {
+		t.Errorf("good request: %d", c)
+	}
+}
