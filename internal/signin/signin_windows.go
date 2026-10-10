@@ -239,7 +239,23 @@ func TypeFromStdin() int {
 	if !tap(vkReturn) {
 		return exitSendInput
 	}
+	// If the lock screen picture took the first Enter, the PIN is still waiting
+	// in the box: press Enter once more while the sign-in screen has the keyboard.
+	time.Sleep(2 * time.Second)
+	if stillAtSignIn() && !tap(vkReturn) {
+		return exitSendInput
+	}
 	return exitOK
+}
+
+func stillAtSignIn() bool {
+	const desktopReadObjects = 0x0001
+	d, _, _ := procOpenInputDesktop.Call(0, 0, desktopReadObjects)
+	if d == 0 {
+		return false
+	}
+	defer procCloseDesktop.Call(d)
+	return strings.EqualFold(desktopName(d), "Winlogon")
 }
 
 func clearBox() bool {
