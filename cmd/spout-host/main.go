@@ -37,6 +37,7 @@ func main() {
 	background := flag.Bool("background", false, "do not open the web UI at startup (Windows opens it when launched by hand)")
 	signinService := flag.Bool("signin-service", false, "run the Windows sign-in service (lets paired devices type the sign-in PIN; needs -config)")
 	signinListen := flag.String("signin-listen", signin.DefaultListen, "address for the sign-in service")
+	startSteam := flag.Bool("start-steam", true, "Windows: with -background, start Steam if it isn't running 30 seconds after sign-in")
 	signinType := flag.Bool("signin-type", false, "internal: type the PIN read from stdin into the sign-in screen")
 	flag.Parse()
 
@@ -97,6 +98,10 @@ func main() {
 		fatal(err)
 	}
 	fmt.Println("API token for the Decky plugin / remote access:", token)
+
+	if *background && *startSteam {
+		go ensureSteam(30 * time.Second)
+	}
 
 	disp := display.New()
 	display.KeepOutputs = store.KeepDisplays
