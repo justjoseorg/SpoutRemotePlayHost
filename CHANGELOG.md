@@ -15,7 +15,7 @@ Minor releases (`X.Y.0`) get a written entry here, which becomes their release n
 
 ### Windows
 
-- **Spout Sign-In** (not yet tested on a device): an optional system service, chosen in Setup, that lets a paired device type your Windows PIN at the sign-in screen. Together with the Decky plugin's numpad, a PC woken with Wake-on-LAN can be signed in remotely so Steam can start. It only types while the sign-in screen shows and never stores the PIN. See [Sign in after Wake-on-LAN](https://github.com/justjoseorg/SpoutRemotePlayHost#-sign-in-after-wake-on-lan-windows).
+- **Spout Sign-In:** an optional system service, chosen in Setup, that lets a paired device type your Windows PIN at the sign-in screen. Together with the Decky plugin's numpad, a PC woken with Wake-on-LAN can be signed in remotely so Steam can start. It only types while the sign-in screen shows and never stores the PIN. See [Sign in after Wake-on-LAN](https://github.com/justjoseorg/SpoutRemotePlayHost#-sign-in-after-wake-on-lan-windows).
 - **Spout Sign-In reports a locked PC**, so the Decky plugin offers the numpad after Win+L too, not only after a fresh boot. *(0.5.1)*
 - **Spout Sign-In fixes from the first device test:** it presses Space instead of Ctrl to lift the lock screen picture, and it detects a locked PC by the lock screen itself, so a signed-in PC no longer shows "not signed in". *(0.5.2)*
 - **Spout Sign-In presses Enter** to lift the lock screen picture (Space didn't), after clearing the PIN box so a half-typed PIN is never submitted. **The host starts Steam** if it isn't running 30 seconds after sign-in, so a PC signed in from the plugin can stream. *(0.5.3)*
