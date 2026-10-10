@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/session"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlib"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/wol"
 )
 
 //go:embed web
@@ -58,6 +60,7 @@ func NewServer(cfg *config.Store, disp display.Manager, version, token string, p
 	mux.HandleFunc("GET /api/displays", localOnly(s.displays))
 	mux.HandleFunc("PUT /api/displays/keep", localOnly(s.putKeep))
 	mux.HandleFunc("POST /api/session", s.session)
+	mux.HandleFunc("POST /api/wake", s.wake)
 	mux.HandleFunc("GET /api/discover", s.discover)
 	mux.HandleFunc("POST /api/pair/request", s.pairRequest)
 	mux.HandleFunc("POST /api/pair/poll", s.pairPoll)
@@ -258,4 +261,27 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeErr(w, 400, errors.New(`state must be "start" or "stop"`))
 	}
+}
+
+// wake sends a Wake-on-LAN packet on this host's networks for a paired device, so
+// a device away from home (where broadcasts don't cross its VPN) can wake another PC.
+func (s *Server) wake(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		MAC string `json:"mac"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	mac, err := wol.ParseMAC(body.MAC)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	if err := wol.Send(mac); err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	log.Printf("wake: sent magic packet for %s", mac)
+	writeJSON(w, 200, map[string]bool{"ok": true})
 }
