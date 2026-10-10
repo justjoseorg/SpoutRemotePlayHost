@@ -35,7 +35,6 @@ const (
 
 	vkBack   = 0x08
 	vkReturn = 0x0D
-	vkSpace  = 0x20
 )
 
 var (
@@ -221,17 +220,15 @@ func TypeFromStdin() int {
 		return exitDesktop
 	}
 
-	// Space lifts the lock screen picture (Ctrl doesn't). If the PIN box was
-	// already showing, the Backspaces clear the space and anything typed before.
-	if !tap(vkSpace) {
+	// Enter lifts the lock screen picture (Space and Ctrl didn't on a tested PC).
+	// Clear the PIN box first so that Enter can't submit a half-typed PIN, then
+	// again in case the box was already showing.
+	if !clearBox() || !tap(vkReturn) {
 		return exitSendInput
 	}
-	time.Sleep(1500 * time.Millisecond)
-	for i := 0; i < 34; i++ {
-		if !tap(vkBack) {
-			return exitSendInput
-		}
-		time.Sleep(10 * time.Millisecond)
+	time.Sleep(2500 * time.Millisecond)
+	if !clearBox() {
+		return exitSendInput
 	}
 	for _, c := range pin {
 		if !tap(uint16(c)) { // VK codes for 0-9 are their ASCII digits
@@ -243,6 +240,16 @@ func TypeFromStdin() int {
 		return exitSendInput
 	}
 	return exitOK
+}
+
+func clearBox() bool {
+	for i := 0; i < 34; i++ {
+		if !tap(vkBack) {
+			return false
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return true
 }
 
 func wtsQuery(session, class uint32) []byte {
