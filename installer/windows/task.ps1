@@ -8,6 +8,8 @@ $ErrorActionPreference = 'Stop'
 $name = 'SpoutRemotePlayHost'
 $exe = Join-Path (Split-Path -Parent $PSCommandPath) 'spout-host.exe'
 $service = 'SpoutSignIn'
+$policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
+$marker = 'HKLM:\SOFTWARE\SpoutRemotePlayHost'
 
 Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
@@ -18,6 +20,11 @@ Get-NetFirewallRule -DisplayName 'Spout Sign-In' -ErrorAction SilentlyContinue |
 if (Get-Service -Name $service -ErrorAction SilentlyContinue) {
     Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
     sc.exe delete $service | Out-Null
+}
+# Undo the "no lock screen picture" policy, but only if Setup turned it on.
+if ((Get-ItemProperty -Path $marker -Name SetNoLockScreen -ErrorAction SilentlyContinue).SetNoLockScreen -eq 1) {
+    Remove-ItemProperty -Path $policy -Name NoLockScreen -ErrorAction SilentlyContinue
+    Remove-Item -Path $marker -Recurse -ErrorAction SilentlyContinue
 }
 if ($Uninstall) { exit 0 }
 
@@ -54,4 +61,13 @@ if ($SignIn) {
     New-NetFirewallRule -DisplayName 'Spout Sign-In' -Direction Inbound -Action Allow -Program $exe `
         -Protocol TCP -LocalPort 47994 -Profile Any | Out-Null
     Start-Service -Name $service
+    # The lock screen picture ignores typed keys but swallows Enter, so a typed PIN is never
+    # submitted. Skip the picture and show the PIN box directly, like "Do not display the
+    # lock screen" in Group Policy.
+    if ((Get-ItemProperty -Path $policy -Name NoLockScreen -ErrorAction SilentlyContinue).NoLockScreen -ne 1) {
+        New-Item -Path $policy -Force | Out-Null
+        Set-ItemProperty -Path $policy -Name NoLockScreen -Type DWord -Value 1
+        New-Item -Path $marker -Force | Out-Null
+        Set-ItemProperty -Path $marker -Name SetNoLockScreen -Type DWord -Value 1
+    }
 }
