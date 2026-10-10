@@ -23,7 +23,7 @@ Name: "driver"; Description: "SudoVDA virtual display driver (an existing SudoVD
 [Tasks]
 Name: "autostart"; Description: "Start automatically when I sign in"
 Name: "lan"; Description: "Allow Decky to scan this PC on the local network"
-Name: "signin"; Description: "Spout Sign-In: let paired devices type my PIN at the Windows sign-in screen after Wake-on-LAN (installs a system service)"; Flags: unchecked
+Name: "signin"; Description: "Spout Sign-In: let paired devices type my PIN at the Windows sign-in screen after Wake-on-LAN (installs a system service; Windows will skip the lock screen picture and go straight to the PIN box)"; Flags: unchecked
 
 [Files]
 Source: "{#HostExe}"; DestDir: "{app}"; Components: host; Flags: ignoreversion
@@ -78,6 +78,17 @@ function HostArgs(Param: String): String;
 begin
   Result := '';
   if WizardIsTaskSelected('lan') then Result := '-listen 0.0.0.0:47995';
+end;
+
+// Spout Sign-In turns off the lock screen picture; make sure that's expected.
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpSelectTasks) and WizardIsTaskSelected('signin') then
+    Result := SuppressibleMsgBox('With Spout Sign-In, this PC will no longer show the lock screen picture (clock and background). ' +
+      'After starting up, waking or locking, it goes straight to the PIN box, so a paired device can type the PIN.' + #13#10#13#10 +
+      'Uninstalling Spout Remote Play Host, or running Setup again without Spout Sign-In, brings the lock screen picture back.' + #13#10#13#10 +
+      'Continue?', mbConfirmation, MB_OKCANCEL, IDOK) = IDOK;
 end;
 
 // Stop a running host and remove its exe, so an upgrade never keeps the old one.

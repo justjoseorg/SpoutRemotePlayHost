@@ -5,6 +5,7 @@ Minor releases (`X.Y.0`) get a written entry here, which becomes their release n
 ## 0.7
 
 - **Shut down from a paired device:** `POST /api/power` with `{"action": "shutdown"}` shuts the PC down. Windows does a full (not hybrid) shutdown after 5 seconds, so Wake-on-LAN can wake it again, without force-closing apps. Linux runs `systemctl poweroff`. The Decky plugin 0.5 has a **Shut down** button for it.
+- **Setup warns that Spout Sign-In skips the lock screen picture**, so the PC goes straight to the PIN box after starting up, waking or locking. *(0.7.1)*
 
 ## 0.6
 
