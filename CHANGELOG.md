@@ -2,6 +2,19 @@
 
 Minor releases (`X.Y.0`) get a written entry here, which becomes their release notes. Patch releases (`X.Y.Z`) are listed on the [Releases](https://github.com/justjoseorg/SpoutRemotePlayHost/releases) page with the change that produced them. Each entry covers everything since the previous minor release.
 
+## 0.4
+
+Released 2026-10-09.
+
+### Windows
+
+- **Handles stream reconnects** (not yet tested on a device). If the stream drops and Steam reconnects, Steam removes its virtual display and adds a new one. The host now follows it to the new display and turns the other displays off again. Before, it kept watching the old display, so the other displays were not turned off again. While no virtual display exists, Windows keeps a physical display on and the host leaves it alone.
+- **Longer wait before restoring the layout (90 s).** A dropped stream can take Steam about a minute to reconnect, so the session is kept that long. The physical displays still come back on as soon as Steam removes its display; only the exact layout restore waits.
+
+### Linux
+
+- **Listens on the LAN** (`0.0.0.0:47995`) in the installed service, so the Decky plugin can reach it. Requests from other machines still need the token.
+
 ## 0.3
 
 Released 2026-10-09.

@@ -3,6 +3,7 @@ package session
 
 import (
 	"log"
+	"runtime"
 	"sync"
 	"time"
 
@@ -24,8 +25,18 @@ type Controller struct {
 	timer *time.Timer
 }
 
+// A dropped stream can take Steam about a minute to reconnect. On Windows the physical displays
+// come back on by themselves as soon as Steam removes its virtual display, so waiting longer
+// only delays putting the exact layout back; elsewhere the host's own monitor would linger.
+func defaultGrace() time.Duration {
+	if runtime.GOOS == "windows" {
+		return 90 * time.Second
+	}
+	return 5 * time.Second
+}
+
 func New(cfg *config.Store, disp display.Manager) *Controller {
-	return &Controller{cfg: cfg, disp: disp, Grace: 5 * time.Second}
+	return &Controller{cfg: cfg, disp: disp, Grace: defaultGrace()}
 }
 
 func modeOf(m config.Monitor) display.Mode {
@@ -72,6 +83,9 @@ func (c *Controller) Start(id string) (bool, error) {
 	if id == "" {
 		log.Println("session from an unpaired client: no virtual monitor")
 		return false, nil
+	}
+	if c.timer != nil && c.disp.Active() && c.owner == id {
+		log.Printf("session for device %q resumed before its monitor was removed", id)
 	}
 	c.cancelLocked()
 	cfg := c.cfg.GetFor(id)
