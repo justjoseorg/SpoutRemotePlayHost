@@ -58,6 +58,10 @@ func RunService(listen, pairedPath string) error {
 		return err == nil && m.Valid(token)
 	}
 	h := NewHandler(valid, launchTyper)
+	h.AtSignIn = func() bool {
+		session := windows.WTSGetActiveConsoleSessionId()
+		return session != 0xFFFFFFFF && signedOutOrLocked(session)
+	}
 	isSvc, err := svc.IsWindowsService()
 	if err != nil {
 		return err

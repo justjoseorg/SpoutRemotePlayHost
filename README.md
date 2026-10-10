@@ -85,7 +85,7 @@ Good to know:
 
 ### 🔑 Sign in after Wake-on-LAN (Windows)
 
-Steam and the host only run once someone is signed in, so a PC that was just woken sits at the sign-in screen and can't stream. With **Spout Sign-In** ticked in Setup, the Decky plugin shows a numpad when the PC is on but nobody is signed in. Type your Windows PIN and the PC signs in. Not yet tested on a device.
+Steam and the host only run once someone is signed in, so a PC that was just woken sits at the sign-in screen and can't stream. With **Spout Sign-In** ticked in Setup, the Decky plugin shows a numpad when the PC is on but nobody is signed in, or the PC is locked. Type your Windows PIN and the PC signs in. Not yet tested on a device.
 
 - Setup installs the `SpoutSignIn` system service, which starts at boot and listens on `0.0.0.0:47994`, with a firewall rule.
 - It only accepts devices paired with this PC's host (it reads the paired devices of the user who ran Setup), and allows 5 attempts per 5 minutes on top of Windows' own PIN lockout.
