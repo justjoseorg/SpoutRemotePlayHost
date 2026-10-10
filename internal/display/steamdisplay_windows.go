@@ -143,10 +143,13 @@ func (s *steamDisplay) run(stop, done chan struct{}) {
 
 // watchLayout re-isolates the virtual display while the session runs if Windows changes the
 // layout behind our back, e.g. a monitor that was turned off sleeps, drops off the bus and
-// comes back, and Windows turns some display back on.
+// comes back, and Windows turns some display back on. When the stream reconnects, Steam
+// removes its display and adds a new one; the watch follows it to the new display. While no
+// virtual display exists Windows keeps a physical one on, and that is left alone.
 func watchLayout(adapter luid, target uint32, stop chan struct{}) {
 	t := time.NewTicker(watchPeriod)
 	defer t.Stop()
+	cur := targetRef{adapter, target}
 	var last time.Time
 	for {
 		select {
@@ -164,10 +167,25 @@ func watchLayout(adapter luid, target uint32, stop chan struct{}) {
 			return
 		default:
 		}
+		virt, err := findVirtual()
+		if err != nil || virt == nil {
+			topo.Unlock()
+			continue
+		}
 		keep := keepOutputs()
-		if drifted(adapter, target, keep) {
+		if *virt != cur {
+			cur = *virt
+			paths, modes, _ := sessionLayout()
+			setSessionLayout(paths, modes, &cur)
 			last = time.Now()
-			if err := isolate(adapter, target, keep); err != nil {
+			if err := isolate(cur.Adapter, cur.ID, keep); err != nil {
+				log.Println("Steam's virtual display came back; turning the other displays off failed:", err)
+			} else {
+				log.Println("Steam's virtual display came back; other displays turned off again")
+			}
+		} else if drifted(cur.Adapter, cur.ID, keep) {
+			last = time.Now()
+			if err := isolate(cur.Adapter, cur.ID, keep); err != nil {
 				log.Println("display layout changed during the session; re-isolating failed:", err)
 			} else {
 				log.Println("display layout changed during the session; virtual display isolated again")

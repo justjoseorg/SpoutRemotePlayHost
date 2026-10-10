@@ -128,7 +128,7 @@ Two independent signals, so it doesn't depend on one fragile hook:
 - **From the handheld:** the plugin reports Steam's Remote Play start/stop to every paired PC (`POST /api/session`, authenticated with the device's own token).
 - **From the PC:** the host tails Steam's `streaming_log.txt` ("Streaming started to <device>…"; the end is "PipeWire: Deinitializing streaming" on Linux and "Encoding complete" on Windows).
 
-Only **paired** devices get a virtual monitor, on every platform: a session from an unpaired client (or a plugin call with the API token instead of a device token) is logged and ignored. The monitor is created from that device's config, is kept across a quick stream restart (5 s grace), and is only removed by the device that owns it.
+Only **paired** devices get a virtual monitor, on every platform: a session from an unpaired client (or a plugin call with the API token instead of a device token) is logged and ignored. The monitor is created from that device's config, is kept across a stream restart or reconnect (90 s grace on Windows, 5 s on Linux), and is only removed by the device that owns it.
 
 ## 📱 Android and other Steam Link devices
 
