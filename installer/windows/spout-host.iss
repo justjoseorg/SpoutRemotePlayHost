@@ -23,6 +23,7 @@ Name: "driver"; Description: "SudoVDA virtual display driver (an existing SudoVD
 [Tasks]
 Name: "autostart"; Description: "Start automatically when I sign in"
 Name: "lan"; Description: "Allow Decky to scan this PC on the local network"
+Name: "signin"; Description: "Spout Sign-In: let paired devices type my PIN at the Windows sign-in screen after Wake-on-LAN (installs a system service)"; Flags: unchecked
 
 [Files]
 Source: "{#HostExe}"; DestDir: "{app}"; Components: host; Flags: ignoreversion
@@ -70,6 +71,7 @@ begin
   Result := '';
   if WizardIsTaskSelected('autostart') then Result := Result + ' -Autostart';
   if WizardIsTaskSelected('lan') then Result := Result + ' -Lan';
+  if WizardIsTaskSelected('signin') then Result := Result + ' -SignIn';
 end;
 
 function HostArgs(Param: String): String;
@@ -87,6 +89,7 @@ begin
   Result := '';
   exe := ExpandConstant('{app}\spout-host.exe');
   Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN SpoutRemotePlayHost', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\sc.exe'), 'stop SpoutSignIn', '', SW_HIDE, ewWaitUntilTerminated, rc);
   for i := 1 to 20 do
   begin
     Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM spout-host.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);

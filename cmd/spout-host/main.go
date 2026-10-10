@@ -20,6 +20,7 @@ import (
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/notify"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/server"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/signin"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlib"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlog"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/tray"
@@ -34,7 +35,25 @@ func main() {
 	cfgPath := flag.String("config", "", "config file path (default: user config dir)")
 	noTray := flag.Bool("no-tray", false, "do not show the system tray icon")
 	background := flag.Bool("background", false, "do not open the web UI at startup (Windows opens it when launched by hand)")
+	signinService := flag.Bool("signin-service", false, "run the Windows sign-in service (lets paired devices type the sign-in PIN; needs -config)")
+	signinListen := flag.String("signin-listen", signin.DefaultListen, "address for the sign-in service")
+	signinType := flag.Bool("signin-type", false, "internal: type the PIN read from stdin into the sign-in screen")
 	flag.Parse()
+
+	if *signinType {
+		os.Exit(signin.TypeFromStdin())
+	}
+	if *signinService {
+		if *cfgPath == "" {
+			fatal(fmt.Errorf("-signin-service needs -config pointing at the signed-in user's config.json"))
+		}
+		setupLog(filepath.Join(os.Getenv("ProgramData"), "SpoutRemotePlayHost"))
+		log.Printf("spout-host %s sign-in service starting (listen %s)", version, *signinListen)
+		if err := signin.RunService(*signinListen, filepath.Join(filepath.Dir(*cfgPath), "paired.json")); err != nil {
+			fatal(err)
+		}
+		return
+	}
 
 	if *cfgPath == "" {
 		p, err := config.DefaultPath()

@@ -75,12 +75,24 @@ Run the Setup (not the bare `spout-host-*-windows-amd64.exe`). It installs the h
 - **SudoVDA virtual display driver.** If a SudoVDA is already installed (e.g. by [ArtLight](https://github.com/onaiaku/ArtLight) or Apollo) it is reused and left untouched, so both apps work side by side, and uninstalling SpoutRemotePlayHost never removes it. Otherwise it installs a SudoVDA built from [SudoMaker/SudoVDA](https://github.com/SudoMaker/SudoVDA) (MIT) in CI and signed with a self-signed certificate, which is added to the Windows Trusted Root and Trusted Publishers stores; that driver and certificate are removed on uninstall unless another app has replaced the driver since. Untick it to install the host only.
 - **Start automatically when I sign in.** A logon task runs the host (`-background`), also on battery and without a time limit.
 - **Allow Decky to scan this PC on the local network.** The host listens on `0.0.0.0:47995` and a firewall rule allows it on all network profiles, since home networks are often classified as Public (requests from other machines still need a token).
+- **Spout Sign-In** (off by default). Lets a paired device type your PIN at the Windows sign-in screen, so a PC woken with Wake-on-LAN can be signed in from the Decky plugin's numpad. See [Sign in after Wake-on-LAN](#-sign-in-after-wake-on-lan-windows).
 
 Good to know:
 
 - Launching the host while it already runs just opens its web UI; launched by hand it opens the UI at startup.
 - The exe has no console: errors are shown in a message box and logged to `%APPDATA%\SpoutRemotePlayHost\spout-host.log`.
 - Ctrl+Alt+Shift+Q (Moonlight's quit-stream shortcut) ends the session's display handling and brings your displays back. If another app already registered it, the hotkey is disabled (logged) and the host runs normally.
+
+### 🔑 Sign in after Wake-on-LAN (Windows)
+
+Steam and the host only run once someone is signed in, so a PC that was just woken sits at the sign-in screen and can't stream. With **Spout Sign-In** ticked in Setup, the Decky plugin shows a numpad when the PC is on but nobody is signed in. Type your Windows PIN and the PC signs in. Not yet tested on a device.
+
+- Setup installs the `SpoutSignIn` system service, which starts at boot and listens on `0.0.0.0:47994`, with a firewall rule.
+- It only accepts devices paired with this PC's host (it reads the paired devices of the user who ran Setup), and allows 5 attempts per 5 minutes on top of Windows' own PIN lockout.
+- It only types when nobody is signed in or the session is locked, and only while the sign-in screen has the keyboard, so never into a signed-in desktop or a UAC prompt. One attempt runs at a time.
+- It trusts the paired devices in that user's `%APPDATA%\SpoutRemotePlayHost\paired.json`, which programs running as that user can also change. At worst such a program could type guesses at your own lock screen, which Windows' PIN lockout limits.
+- The PIN is typed once and never stored or logged, on the PC or in the plugin. Only digits are accepted, so it works with a numeric Windows Hello PIN, not a password.
+- The service logs to `%ProgramData%\SpoutRemotePlayHost\spout-host.log`.
 
 ### 🎮 Steam setup (Windows)
 
