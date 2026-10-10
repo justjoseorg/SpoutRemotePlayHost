@@ -32,6 +32,9 @@ const (
 	exitNotSignIn = 3
 	exitDesktop   = 4
 	exitSendInput = 5
+	// The sign-in screen never took the keyboard; the input desktop stayed Default or Screen-saver.
+	exitOnDefault     = 6
+	exitOnScreenSaver = 7
 
 	vkBack   = 0x08
 	vkReturn = 0x0D
@@ -189,6 +192,12 @@ func launchTyper(pin string) error {
 		return nil
 	case exitNotSignIn:
 		return ErrNotSignInScreen
+	case exitOnDefault:
+		log.Println("sign-in: the session is locked but the PIN box never took the keyboard (input desktop: Default)")
+		return fmt.Errorf("%w: the lock screen picture didn't open the PIN box", ErrNotSignInScreen)
+	case exitOnScreenSaver:
+		log.Println("sign-in: a screen saver kept the keyboard")
+		return fmt.Errorf("%w: a screen saver is running", ErrNotSignInScreen)
 	default:
 		return fmt.Errorf("typing the PIN failed (helper exit %d)", code)
 	}
@@ -206,19 +215,11 @@ func TypeFromStdin() int {
 	if !pinRE.MatchString(pin) {
 		return exitBadInput
 	}
-	// SendInput needs DESKTOP_JOURNALPLAYBACK on the thread's desktop, which GENERIC_ALL includes.
-	const genericAll = 0x10000000
-	d, _, _ := procOpenInputDesktop.Call(0, 0, genericAll)
-	if d == 0 {
-		return exitDesktop
+	d, code := attachSignInDesktop()
+	if code != exitOK {
+		return code
 	}
 	defer procCloseDesktop.Call(d)
-	if !strings.EqualFold(desktopName(d), "Winlogon") {
-		return exitNotSignIn
-	}
-	if r, _, _ := procSetThreadDesktop.Call(d); r == 0 {
-		return exitDesktop
-	}
 
 	// Enter lifts the lock screen picture (Space and Ctrl didn't on a tested PC).
 	// Clear the PIN box first so that Enter can't submit a half-typed PIN, then
@@ -246,6 +247,46 @@ func TypeFromStdin() int {
 		return exitSendInput
 	}
 	return exitOK
+}
+
+// attachSignInDesktop attaches this thread to the sign-in screen's desktop. The
+// service only starts the helper when nobody is signed in or the session is locked,
+// so if a locked session's lock screen picture (or a screen saver) still has the
+// keyboard, Enter is pressed there once to bring up the PIN box.
+func attachSignInDesktop() (uintptr, int) {
+	// SendInput needs DESKTOP_JOURNALPLAYBACK on the thread's desktop, which GENERIC_ALL includes.
+	const genericAll = 0x10000000
+	pressed := false
+	last := ""
+	for deadline := time.Now().Add(8 * time.Second); time.Now().Before(deadline); time.Sleep(500 * time.Millisecond) {
+		d, _, _ := procOpenInputDesktop.Call(0, 0, genericAll)
+		if d == 0 {
+			continue
+		}
+		last = desktopName(d)
+		if strings.EqualFold(last, "Winlogon") {
+			if r, _, _ := procSetThreadDesktop.Call(d); r == 0 {
+				procCloseDesktop.Call(d)
+				return 0, exitDesktop
+			}
+			return d, exitOK
+		}
+		if !pressed {
+			if r, _, _ := procSetThreadDesktop.Call(d); r != 0 {
+				pressed = tap(vkReturn)
+			}
+		}
+		procCloseDesktop.Call(d)
+	}
+	switch {
+	case strings.EqualFold(last, "Default"):
+		return 0, exitOnDefault
+	case strings.EqualFold(last, "Screen-saver"):
+		return 0, exitOnScreenSaver
+	case last == "":
+		return 0, exitDesktop
+	}
+	return 0, exitNotSignIn
 }
 
 func stillAtSignIn() bool {
