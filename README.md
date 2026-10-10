@@ -85,7 +85,7 @@ Good to know:
 
 ### 🔑 Sign in after Wake-on-LAN (Windows)
 
-Steam and the host only run once someone is signed in, so a PC that was just woken sits at the sign-in screen and can't stream. With **Spout Sign-In** ticked in Setup, the Decky plugin shows a numpad when the PC is on but nobody is signed in, or the PC is locked. Type your Windows PIN and the PC signs in. If Steam isn't running 5 seconds after sign-in, the host starts it (minimized); run the host with `-start-steam=false` to turn this off. Typing the PIN works on a device; 0.5.5's lock screen policy, 0.5.6's locked-session handling and the Steam start are not yet tested.
+Steam and the host only run once someone is signed in, so a PC that was just woken sits at the sign-in screen and can't stream. With **Spout Sign-In** ticked in Setup, the Decky plugin shows a numpad when the PC is on but nobody is signed in, or the PC is locked. Type your Windows PIN and the PC signs in. If Steam isn't running 5 seconds after sign-in, the host starts it (minimized); run the host with `-start-steam=false` to turn this off. Typing the PIN works on a device; 0.5.7's typing order with the lock screen picture off, 0.5.6's locked-session handling and the Steam start are not yet tested.
 
 - Setup installs the `SpoutSignIn` system service, which starts at boot and listens on `0.0.0.0:47994`, with a firewall rule.
 - Setup also turns on Windows' **"Do not display the lock screen"** policy, so the PIN box shows right away instead of the lock screen picture, which would swallow the Enter that submits the PIN. Removing Sign-In (or the host) turns it back off, unless it was already on before.

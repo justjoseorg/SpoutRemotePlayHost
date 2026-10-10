@@ -221,13 +221,8 @@ func TypeFromStdin() int {
 	}
 	defer procCloseDesktop.Call(d)
 
-	// Enter lifts the lock screen picture (Space and Ctrl didn't on a tested PC).
-	// Clear the PIN box first so that Enter can't submit a half-typed PIN, then
-	// again in case the box was already showing.
-	if !clearBox() || !tap(vkReturn) {
-		return exitSendInput
-	}
-	time.Sleep(2500 * time.Millisecond)
+	// No Enter before typing: on an empty PIN box it shows "Provide a PIN" and
+	// the digits are lost. Setup turns off the lock screen picture instead.
 	if !clearBox() {
 		return exitSendInput
 	}
@@ -240,7 +235,7 @@ func TypeFromStdin() int {
 	if !tap(vkReturn) {
 		return exitSendInput
 	}
-	// If the lock screen picture took the first Enter, the PIN is still waiting
+	// If a lock screen picture took the first Enter, the PIN is still waiting
 	// in the box: press Enter once more while the sign-in screen has the keyboard.
 	time.Sleep(2 * time.Second)
 	if stillAtSignIn() && !tap(vkReturn) {

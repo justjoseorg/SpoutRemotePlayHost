@@ -13,6 +13,7 @@ Minor releases (`X.Y.0`) get a written entry here, which becomes their release n
 - **Spout Sign-In presses Enter again** if the sign-in screen still has the keyboard 2 seconds after typing, for when the lock screen picture took the first Enter. **The host starts Steam 5 seconds after sign-in** instead of 30, since Steam's own autostart can be slow. *(0.5.4)*
 - **Setup skips the lock screen picture when Spout Sign-In is ticked** (Windows' "Do not display the lock screen" policy). A test showed the picture stays on top of a typed PIN and takes the Enter, so the PIN was never submitted. Removing Sign-In turns the policy back off. *(0.5.5)*
 - **Spout Sign-In handles a locked session whose lock screen picture has the keyboard** (for example when Windows signs you in at boot and locks, with "Use my sign-in info to automatically finish setting up"). It presses Enter once to bring up the PIN box and waits up to 8 seconds for it. If it still can't type, the plugin says why (lock screen picture or screen saver). *(0.5.6)*
+- **Spout Sign-In no longer presses Enter before typing.** With the lock screen picture off (0.5.5) that Enter hit the empty PIN box, which showed "Provide a PIN" and lost the digits. *(0.5.7)*
 
 ## 0.4
 
