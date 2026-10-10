@@ -104,6 +104,8 @@ Extract `spout-host-vX.Y.Z-linux-amd64.tar.gz` and run `./install.sh` (user syst
 
 The Linux backend uses the `vibeshine_drm` kernel module (the driver ArtLight uses) and `kscreen-doctor`, so it needs **KDE Plasma on Wayland** and **Linux 6.16+**.
 
+Tested by streaming from a Linux PC to an AYN Odin 2 Portal: the host created a virtual display for the stream and removed it afterwards.
+
 ## 🔐 Pairing
 
 1. In the Decky plugin, pick this PC.
