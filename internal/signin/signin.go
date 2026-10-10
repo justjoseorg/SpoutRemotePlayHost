@@ -38,7 +38,9 @@ type Typer func(pin string) error
 type Handler struct {
 	valid func(token string) bool
 	typ   Typer
-	now   func() time.Time
+	// AtSignIn reports whether nobody is signed in or the session is locked; nil means unknown.
+	AtSignIn func() bool
+	now      func() time.Time
 
 	mu     sync.Mutex
 	tries  []time.Time
@@ -61,7 +63,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		st := map[string]any{"ok": true}
+		if h.AtSignIn != nil {
+			st["signInScreen"] = h.AtSignIn()
+		}
+		writeJSON(w, http.StatusOK, st)
 	case http.MethodPost:
 		h.post(w, r)
 	default:

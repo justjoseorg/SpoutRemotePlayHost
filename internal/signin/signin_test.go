@@ -94,3 +94,17 @@ func TestOneAttemptAtATime(t *testing.T) {
 		t.Fatalf("first attempt: %d", c)
 	}
 }
+
+func TestStatusReportsSignInScreen(t *testing.T) {
+	h := newTest(func(string) error { return nil })
+	if w := do(h, "GET", "good", ""); strings.Contains(w.Body.String(), "signInScreen") {
+		t.Fatalf("unknown state reported: %s", w.Body)
+	}
+	h.AtSignIn = func() bool { return true }
+	if w := do(h, "GET", "good", ""); !strings.Contains(w.Body.String(), `"signInScreen":true`) {
+		t.Fatalf("got %s", w.Body)
+	}
+	if w := do(h, "GET", "bad", ""); w.Code != 401 {
+		t.Fatalf("unauthenticated status: %d", w.Code)
+	}
+}
