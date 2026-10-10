@@ -408,3 +408,36 @@ func TestWakeRelay(t *testing.T) {
 		t.Errorf("good request: %d", c)
 	}
 }
+
+func TestPowerShutdown(t *testing.T) {
+	store, err := config.Open(filepath.Join(t.TempDir(), "c.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewServer(store, display.New(), "test", "tok", mustPair(t))
+	calls := 0
+	s.shutdown = func() error { calls++; return nil }
+	h := s.Handler()
+	remote := func(auth, body string) int {
+		r := httptest.NewRequest("POST", "/api/power", strings.NewReader(body))
+		r.RemoteAddr = "192.168.1.174:5555"
+		if auth != "" {
+			r.Header.Set("Authorization", auth)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec.Code
+	}
+	if c := remote("", `{"action":"shutdown"}`); c != 401 {
+		t.Errorf("no token: %d", c)
+	}
+	if c := remote("Bearer tok", `{"action":"reboot"}`); c != 400 {
+		t.Errorf("unknown action: %d", c)
+	}
+	if calls != 0 {
+		t.Fatalf("shut down on a rejected request")
+	}
+	if c := remote("Bearer tok", `{"action":"shutdown"}`); c != 200 || calls != 1 {
+		t.Errorf("shutdown: %d, calls %d", c, calls)
+	}
+}

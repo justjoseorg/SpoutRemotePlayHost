@@ -2,6 +2,10 @@
 
 Minor releases (`X.Y.0`) get a written entry here, which becomes their release notes. Patch releases (`X.Y.Z`) are listed on the [Releases](https://github.com/justjoseorg/SpoutRemotePlayHost/releases) page with the change that produced them. Each entry covers everything since the previous minor release.
 
+## 0.7
+
+- **Shut down from a paired device:** `POST /api/power` with `{"action": "shutdown"}` shuts the PC down. Windows does a full (not hybrid) shutdown after 5 seconds, so Wake-on-LAN can wake it again, without force-closing apps. Linux runs `systemctl poweroff`. The Decky plugin 0.5 has a **Shut down** button for it.
+
 ## 0.6
 
 - **Wake relay:** a paired device can ask the host to send a Wake-on-LAN packet on the host's networks (`POST /api/wake`). With the Decky plugin 0.4, waking a PC from away over a VPN such as WireGuard works when another PC at home runs the host. See [Wake from away](https://github.com/justjoseorg/SpoutRemotePlayHost#-wake-from-away).

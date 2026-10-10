@@ -54,6 +54,7 @@ This app complements Steam's native Remote Play and makes it better. It does not
 | 🌑 **Other displays off** (Windows) | Every other display is turned off during the session, except the ones you keep on. The previous layout is restored when it ends. Linux doesn't turn displays off yet. |
 | 🔐 **Paired devices only** | Unpaired clients never get a monitor. |
 | 🧩 **Apps** | Add programs to Steam from the web UI, with optional SteamGridDB artwork. |
+| ⏻ **Shut down** | A paired device can shut the PC down (`POST /api/power` with `{"action": "shutdown"}`), for example from the Decky plugin. Windows does a full shutdown after 5 seconds, so Wake-on-LAN can wake it again; apps with unsaved work can still stop it. Linux runs `systemctl poweroff`. |
 | ⏰ **Wake relay** | A paired device away from home (for example over WireGuard) can ask this host to wake another PC on its network. See [Wake from away](#-wake-from-away). |
 
 Pair each device once, give it its own monitor settings, and from then on it just works. Together with the [Decky plugin](https://github.com/justjoseorg/SpoutRemotePlay) (Wake-on-LAN, pairing, settings), the flow is: **wake the PC → press play in Steam → stream.**
