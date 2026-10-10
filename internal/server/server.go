@@ -17,6 +17,7 @@ import (
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/power"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/session"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlib"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/wol"
@@ -35,6 +36,8 @@ type Server struct {
 	art     *artwork.Client
 	lib     steamlib.Library
 	handler http.Handler
+	// shutdown powers the PC off; tests replace it.
+	shutdown func() error
 }
 
 // Sessions returns the controller that ties Remote Play sessions to the virtual monitor.
@@ -50,7 +53,7 @@ func New(cfg *config.Store, disp display.Manager, version, token string, pair *p
 
 // NewServer is New but also exposes the session controller.
 func NewServer(cfg *config.Store, disp display.Manager, version, token string, pair *pairing.Manager) *Server {
-	s := &Server{cfg: cfg, disp: disp, version: version, pair: pair, sess: session.New(cfg, disp)}
+	s := &Server{cfg: cfg, disp: disp, version: version, pair: pair, sess: session.New(cfg, disp), shutdown: power.Shutdown}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.status)
 	mux.HandleFunc("GET /api/config", s.getConfig)
@@ -61,6 +64,7 @@ func NewServer(cfg *config.Store, disp display.Manager, version, token string, p
 	mux.HandleFunc("PUT /api/displays/keep", localOnly(s.putKeep))
 	mux.HandleFunc("POST /api/session", s.session)
 	mux.HandleFunc("POST /api/wake", s.wake)
+	mux.HandleFunc("POST /api/power", s.power)
 	mux.HandleFunc("GET /api/discover", s.discover)
 	mux.HandleFunc("POST /api/pair/request", s.pairRequest)
 	mux.HandleFunc("POST /api/pair/poll", s.pairPoll)
@@ -283,5 +287,26 @@ func (s *Server) wake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("wake: sent magic packet for %s", mac)
+	writeJSON(w, 200, map[string]bool{"ok": true})
+}
+
+// power shuts the PC down for a paired device (Decky plugin's Shut down button).
+func (s *Server) power(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Action string `json:"action"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	if body.Action != "shutdown" {
+		writeErr(w, 400, errors.New(`action must be "shutdown"`))
+		return
+	}
+	if err := s.shutdown(); err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	log.Printf("power: shutting down for device %q", s.deviceID(r))
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }
