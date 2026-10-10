@@ -2,6 +2,12 @@
 
 Minor releases (`X.Y.0`) get a written entry here, which becomes their release notes. Patch releases (`X.Y.Z`) are listed on the [Releases](https://github.com/justjoseorg/SpoutRemotePlayHost/releases) page with the change that produced them. Each entry covers everything since the previous minor release.
 
+## 0.5
+
+### Windows
+
+- **Spout Sign-In** (not yet tested on a device): an optional system service, chosen in Setup, that lets a paired device type your Windows PIN at the sign-in screen. Together with the Decky plugin's numpad, a PC woken with Wake-on-LAN can be signed in remotely so Steam can start. It only types while the sign-in screen shows and never stores the PIN. See [Sign in after Wake-on-LAN](https://github.com/justjoseorg/SpoutRemotePlayHost#-sign-in-after-wake-on-lan-windows).
+
 ## 0.4
 
 Released 2026-10-09.
