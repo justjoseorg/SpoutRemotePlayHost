@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -161,19 +162,47 @@ func (c *CEF) eval(expr string) (json.RawMessage, error) {
 				Result struct {
 					Value json.RawMessage `json:"value"`
 				} `json:"result"`
-				Exception *struct {
-					Text string `json:"text"`
-				} `json:"exceptionDetails"`
+				Exception *exceptionDetails `json:"exceptionDetails"`
 			} `json:"result"`
 		}
 		if json.Unmarshal(data, &r) != nil || r.ID != 1 {
 			continue
 		}
 		if r.Result.Exception != nil {
-			return nil, fmt.Errorf("steam: %s", r.Result.Exception.Text)
+			return nil, fmt.Errorf("steam: %s", r.Result.Exception)
 		}
 		return r.Result.Result.Value, nil
 	}
+}
+
+type exceptionDetails struct {
+	Text      string `json:"text"`
+	Exception struct {
+		Description string `json:"description"`
+		Preview     struct {
+			Properties []struct {
+				Name  string `json:"name"`
+				Value string `json:"value"`
+			} `json:"properties"`
+		} `json:"preview"`
+	} `json:"exception"`
+}
+
+// String describes the thrown value; Steam rejects with plain objects like {result: 2, message: ""}.
+func (e *exceptionDetails) String() string {
+	if d := e.Exception.Description; d != "" && d != "Object" {
+		return d
+	}
+	var parts []string
+	for _, p := range e.Exception.Preview.Properties {
+		if p.Value != "" {
+			parts = append(parts, p.Name+" "+p.Value)
+		}
+	}
+	if len(parts) == 0 {
+		return e.Text
+	}
+	return "request failed (" + strings.Join(parts, ", ") + ")"
 }
 
 func (c *CEF) Status() Status {
@@ -229,7 +258,22 @@ func (c *CEF) Exists(id uint32) bool {
 }
 
 // SetArtwork sets custom artwork; kind is Steam's asset type (0 portrait, 1 hero, 2 logo, 3 wide, 4 icon).
+// Steam doesn't take icons as custom artwork, so the icon is saved in the grid folder and set as the shortcut's icon.
 func (c *CEF) SetArtwork(id uint32, kind int, ext string, data []byte) error {
+	if kind == iconKind {
+		p, err := iconPath(Roots(), id, ext)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(p, data, 0o644); err != nil {
+			return err
+		}
+		_, err = c.eval(fmt.Sprintf("SteamClient.Apps.SetShortcutIcon(%d,%s)", id, js(p)))
+		return err
+	}
 	_, err := c.eval(fmt.Sprintf("SteamClient.Apps.SetCustomArtworkForApp(%d,%s,%s,%d)",
 		id, js(base64.StdEncoding.EncodeToString(data)), js(ext), kind))
 	return err

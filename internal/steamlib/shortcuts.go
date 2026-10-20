@@ -75,6 +75,18 @@ func shortcutsFile(roots []string) (string, error) {
 
 var vdfPair = regexp.MustCompile(`^\s*"([^"]*)"(?:\s+"([^"]*)")?\s*$`)
 
+// iconKind is the artwork kind for icons (see SetArtwork).
+const iconKind = 4
+
+// iconPath is where a shortcut's icon is stored: the grid folder next to the user's shortcuts.vdf.
+func iconPath(roots []string, id uint32, ext string) (string, error) {
+	sc, err := shortcutsFile(roots)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(sc), "grid", fmt.Sprintf("%d_icon.%s", id, ext)), nil
+}
+
 // mostRecentAccount returns the userdata folder name of the user marked MostRecent in loginusers.vdf.
 func mostRecentAccount(path string) string {
 	f, err := os.Open(path)
