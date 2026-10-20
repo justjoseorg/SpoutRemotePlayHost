@@ -185,6 +185,7 @@ The host checks GitHub for a new release a minute after it starts and every 6 ho
 - **Windows:** runs the new Setup silently with the tasks you picked before (autostart, LAN, Sign-In). If the host isn't running as administrator, Windows asks for permission first. Setup restarts the host when it's done.
 - **Linux:** replaces `~/.local/bin/spout-host` with the one from the release and restarts in place. Only the binary is updated; re-run `install.sh` from a new release if its notes mention driver or service changes.
 - Builds you compile yourself (version `dev`) don't update.
+- If an update fails, the reason shows under **Updates** and in `spout-host.log`. You can always install a release by hand from the [Releases](https://github.com/justjoseorg/SpoutRemotePlayHost/releases) page.
 - Tested on Windows: a build reporting 0.7.0 updated itself to 0.7.8 from the real release (download, digest check, silent Setup, previous tasks kept, host restarted by the logon task). Not tested yet: the Linux path, automatic installs, and the Windows permission prompt.
 
 ## 🔎 How it works
