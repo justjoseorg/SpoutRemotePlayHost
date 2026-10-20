@@ -22,6 +22,7 @@ import (
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/power"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/session"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlib"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/update"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/wol"
 )
 
@@ -43,6 +44,7 @@ type Server struct {
 	// pick opens a file dialog on this PC and shortcuts lists Steam's existing shortcuts; tests replace them.
 	pick      func(ctx context.Context, start string) (string, error)
 	shortcuts func() ([]steamlib.Existing, error)
+	upd       *update.Updater
 }
 
 // Sessions returns the controller that ties Remote Play sessions to the virtual monitor.
@@ -97,6 +99,10 @@ func NewServer(cfg *config.Store, disp display.Manager, version, token string, p
 	mux.HandleFunc("PUT /api/apps/{id}/artwork", localOnly(s.setArtwork))
 	mux.HandleFunc("PUT /api/steam/artwork-key", localOnly(s.setArtworkKey))
 	mux.HandleFunc("POST /api/steam/enable-debugging", localOnly(s.enableSteam))
+	mux.HandleFunc("GET /api/update", s.updateStatus)
+	// Installing runs a downloaded program as administrator, so only the local UI may start it.
+	mux.HandleFunc("POST /api/update/install", localOnly(s.installUpdate))
+	mux.HandleFunc("PUT /api/update/auto", localOnly(s.setAutoUpdate))
 	sub, _ := fs.Sub(webFS, "web")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 	s.handler = requireToken(mux, token, pair)

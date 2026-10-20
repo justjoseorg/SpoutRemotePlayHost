@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/apps"
@@ -24,6 +25,7 @@ import (
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlib"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlog"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/tray"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/update"
 )
 
 // version is set at build time via -ldflags.
@@ -39,8 +41,15 @@ func main() {
 	signinListen := flag.String("signin-listen", signin.DefaultListen, "address for the sign-in service")
 	startSteam := flag.Bool("start-steam", true, "Windows: with -background, start Steam if it isn't running 5 seconds after sign-in")
 	signinType := flag.Bool("signin-type", false, "internal: type the PIN read from stdin into the sign-in screen")
+	runSetup := flag.String("run-setup", "", "internal: start the downloaded Setup for an update and exit")
 	flag.Parse()
 
+	if *runSetup != "" {
+		if err := update.RunSetup(*runSetup); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	if *signinType {
 		os.Exit(signin.TypeFromStdin())
 	}
@@ -130,10 +139,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	upd := update.New(version, filepath.Join(filepath.Dir(*cfgPath), "update.json"))
+	upd.Cleanup()
+	var streaming atomic.Bool
 	srv := server.NewServer(store, disp, version, token, pair).WithApps(catalog, steamlib.NewCEF()).
-		WithArtwork(artwork.Open(filepath.Join(filepath.Dir(*cfgPath), "steamgriddb.key")))
+		WithArtwork(artwork.Open(filepath.Join(filepath.Dir(*cfgPath), "steamgriddb.key"))).
+		WithUpdater(upd)
 	handler := srv.Handler()
+	go upd.Run(stop, time.Minute, 6*time.Hour, func(s update.Status) {
+		notify.Send("Spout Remote Play Host "+s.Latest+" is available", "Open the host to install the update.", uiURL)
+	}, streaming.Load)
 	go steamlog.Watch(steamlog.Candidates(), time.Second, stop, func(ev steamlog.Event) {
+		streaming.Store(ev.Start)
 		if !ev.Start {
 			srv.Sessions().Stop("")
 			return

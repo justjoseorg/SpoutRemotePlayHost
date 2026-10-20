@@ -2,10 +2,17 @@
 
 Minor releases (`X.Y.0`) get a written entry here, which becomes their release notes. Patch releases (`X.Y.Z`) are listed on the [Releases](https://github.com/justjoseorg/SpoutRemotePlayHost/releases) page with the change that produced them. Each entry covers everything since the previous minor release.
 
+## 0.8
+
+- **Updates:** the host checks GitHub for new releases, sends a desktop notification and shows **Install update** in the web UI. Downloads are verified against GitHub's SHA-256 digest. On Windows the new Setup runs silently with your previous choices; on Linux the binary is replaced and the host restarts. An optional **Install updates automatically** setting waits until no device is streaming. See [Updates](https://github.com/justjoseorg/SpoutRemotePlayHost#-updates).
+
 ## 0.7
 
 - **Shut down from a paired device:** `POST /api/power` with `{"action": "shutdown"}` shuts the PC down. Windows does a full (not hybrid) shutdown after 5 seconds, so Wake-on-LAN can wake it again, without force-closing apps. Linux runs `systemctl poweroff`. The Decky plugin 0.5 has a **Shut down** button for it.
 - **Setup warns that Spout Sign-In skips the lock screen picture**, so the PC goes straight to the PIN box after starting up, waking or locking. *(0.7.1)*
+- **Apps:** **Browse…** picks the program with this PC's file dialog, and **Import from Steam** lists the non-Steam games already in Steam. *(0.7.6)*
+- **Choose artwork** from SteamGridDB's options for each type; API keys pasted with their label work; Spout Sign-In is a plain checkbox in Setup again, without a popup. *(0.7.7)*
+- **Choosing an icon works** (Steam rejected icons as custom artwork; they're now set as the shortcut's icon). *(0.7.8)*
 
 ## 0.6
 

@@ -62,6 +62,10 @@
   <h2>Pairing request</h2>
   <div id="pending"></div>
 </section>
+<section class="panel" id="updbanner" hidden>
+  <h2>Update available</h2>
+  <div class="card"><span id="updtext"></span><button type="button" class="primary" id="updinstall">Install update</button></div>
+</section>
 <nav class="tabs"><button data-tab="devices" class="on">Devices</button><button data-tab="apps">Apps</button><button data-tab="defaults">Monitor config</button></nav>
 <section class="panel" id="tab-defaults" hidden>
   <h2>Defaults</h2>
@@ -80,6 +84,10 @@
   <h2 style="margin-top:1.5rem">Displays during a session</h2>
   <p><small>While a paired device streams, the virtual monitor is the main display and every other display is turned off. Tick a display to keep it on. Your layout comes back when the session ends.</small></p>
   <div id="displays"></div>
+  <h2 style="margin-top:1.5rem">Updates</h2>
+  <p><small id="updstatus">Checking…</small></p>
+  <label class="check"><input type="checkbox" id="updauto"> Install updates automatically (waits until no device is streaming)</label>
+  <button type="button" id="updcheck">Check now</button>
 </section>
 <section class="panel" id="tab-apps" hidden>
   <h2>Apps in Steam</h2>
@@ -132,6 +140,58 @@ async function load() {
   $("#pill").classList.toggle("on", s.monitorActive);
   $("#ver").textContent = "v" + s.version;
 }
+function showUpdate(u) {
+  const banner = u.available && !u.installing;
+  $("#updbanner").hidden = !banner;
+  if (banner) {
+    $("#updtext").innerHTML = "";
+    $("#updtext").append("Version " + u.latest + " is ready to install. ");
+    if (u.url) {
+      const a = document.createElement("a");
+      a.href = u.url; a.target = "_blank"; a.textContent = "What's new";
+      $("#updtext").append(a);
+    }
+  }
+  $("#updauto").checked = u.auto;
+  $("#updauto").disabled = $("#updcheck").disabled = !u.supported;
+  let t;
+  if (!u.supported) t = "Updates are only available for release builds (this is " + u.current + ").";
+  else if (u.installing) t = "Installing the update; the host restarts in a moment.";
+  else if (u.error) t = u.error;
+  else if (u.available) t = "Version " + u.latest + " is available (you have " + u.current + ").";
+  else if (u.latest) t = "Up to date (" + u.current + ").";
+  else t = "Not checked yet.";
+  if (u.checked && !u.checked.startsWith("0001")) t += " Last checked " + new Date(u.checked).toLocaleString() + ".";
+  $("#updstatus").textContent = t;
+}
+async function loadUpdate(check) {
+  try { const u = await api("GET", "/api/update" + (check ? "?check=1" : "")); showUpdate(u); return u; }
+  catch (err) { $("#updstatus").textContent = err.message; }
+}
+$("#updcheck").onclick = () => { $("#updstatus").textContent = "Checking…"; loadUpdate(true); };
+$("#updauto").onchange = async (e) => {
+  try { showUpdate(await api("PUT", "/api/update/auto", { auto: e.target.checked })); msg("Saved"); }
+  catch (err) { msg(err.message); loadUpdate(); }
+};
+$("#updinstall").onclick = async () => {
+  const from = $("#ver").textContent;
+  $("#updinstall").disabled = true;
+  msg("Downloading the update…");
+  try {
+    showUpdate(await api("POST", "/api/update/install"));
+    msg("Installing… this page reloads when the host is back.");
+  } catch (err) { msg(err.message); $("#updinstall").disabled = false; return; }
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const s = await (await fetch("/api/status")).json();
+      if ("v" + s.version !== from) { location.reload(); return; }
+    } catch (e) {}
+  }
+  msg("The host hasn't come back yet. Check that Setup finished, then reload this page.");
+  $("#updinstall").disabled = false;
+};
+loadUpdate(false).then((u) => { if (u && u.supported && !u.latest && !u.error) loadUpdate(true); });
 $("#f").onsubmit = async (e) => {
   e.preventDefault();
   const f = e.target;

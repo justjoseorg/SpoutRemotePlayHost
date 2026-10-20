@@ -54,6 +54,10 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Fil
   StatusMsg: "Configuring startup..."; Flags: runhidden waituntilterminated
 Filename: "{app}\spout-host.exe"; Parameters: "{code:HostArgs}"; Description: "Open Spout Remote Play Host"; \
   Flags: postinstall nowait skipifsilent runasoriginaluser
+; Updates started from the host run silently with /RELAUNCH=1; the logon task restarts the host
+; when it's set up, otherwise start it here.
+Filename: "{app}\spout-host.exe"; Parameters: "-background {code:HostArgs}"; Check: Relaunch; \
+  Flags: nowait runasoriginaluser
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\task.ps1"" -Uninstall"; \
@@ -78,6 +82,11 @@ function HostArgs(Param: String): String;
 begin
   Result := '';
   if WizardIsTaskSelected('lan') then Result := '-listen 0.0.0.0:47995';
+end;
+
+function Relaunch(): Boolean;
+begin
+  Result := (ExpandConstant('{param:RELAUNCH|0}') = '1') and not WizardIsTaskSelected('autostart');
 end;
 
 // Stop a running host and remove its exe, so an upgrade never keeps the old one.
