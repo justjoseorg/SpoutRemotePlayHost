@@ -174,6 +174,8 @@ The **Apps** tab adds programs to this PC's Steam library as non-Steam shortcuts
 - **Local only:** adding, removing and deleting apps only works from this PC, because it runs programs on the host. Paired devices can only read the list.
 - **Artwork (optional):** save a free [SteamGridDB](https://www.steamgriddb.com/profile/preferences/api) API key and new shortcuts get a cover, hero, logo and icon. Setting artwork in Steam is verified on Linux. The SteamGridDB lookup is only unit tested against a fake server.
 - Add and remove are verified on Linux Steam. Whether the Steam Link client lists them isn't verified yet.
+- **Browse…** opens this PC's own file dialog to pick the program (a web page can't see real file paths). On Windows it's tested opening in the right folder, cancelling, and refusing a second dialog while one is open. On Linux it uses `kdialog` or `zenity` and is not tested yet.
+- **Import from Steam** lists the non-Steam games already in Steam (read from `userdata/<you>/config/shortcuts.vdf`, so Steam doesn't need to be running) and adds them to the list, linked to their existing Steam entry. Nothing in Steam changes. Tested on Windows with 8 Xbox games. Deleting an imported app also removes it from Steam.
 
 ## 🔎 How it works
 
