@@ -17,6 +17,7 @@ type fakeLib struct {
 	next  uint32
 	have  map[uint32]steamlib.Shortcut
 	debug bool
+	art   map[int]string
 }
 
 func (f *fakeLib) Status() steamlib.Status {
@@ -35,8 +36,14 @@ func (f *fakeLib) Exists(id uint32) bool  { _, ok := f.have[id]; return ok }
 func (f *fakeLib) Devices() ([]steamlib.Device, error) {
 	return []steamlib.Device{{ID: "42", Name: "Pixel", Status: "Connected"}}, nil
 }
-func (f *fakeLib) SetArtwork(uint32, int, string, []byte) error { return nil }
-func (f *fakeLib) EnableDebugging() error                       { f.debug = true; return nil }
+func (f *fakeLib) SetArtwork(_ uint32, kind int, ext string, _ []byte) error {
+	if f.art == nil {
+		f.art = map[int]string{}
+	}
+	f.art[kind] = ext
+	return nil
+}
+func (f *fakeLib) EnableDebugging() error { f.debug = true; return nil }
 
 func appsServer(t *testing.T) (*Server, *fakeLib) {
 	t.Helper()

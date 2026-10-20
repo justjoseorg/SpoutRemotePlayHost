@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -45,9 +46,18 @@ type Client struct {
 func Open(path string) *Client {
 	c := &Client{Base: "https://www.steamgriddb.com/api/v2", path: path, http: &http.Client{Timeout: 20 * time.Second}}
 	if b, err := os.ReadFile(path); err == nil {
-		c.key = strings.TrimSpace(string(b))
+		c.key = cleanKey(string(b))
 	}
 	return c
+}
+
+// cleanKey drops a label pasted along with the key (e.g. "Key: 0123…"): keys contain no spaces.
+func cleanKey(k string) string {
+	f := strings.Fields(k)
+	if len(f) == 0 {
+		return ""
+	}
+	return f[len(f)-1]
 }
 
 func (c *Client) HasKey() bool {
@@ -58,7 +68,7 @@ func (c *Client) HasKey() bool {
 
 // SetKey stores the API key; an empty key removes it.
 func (c *Client) SetKey(k string) error {
-	k = strings.TrimSpace(k)
+	k = cleanKey(k)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if k == "" {
@@ -123,52 +133,152 @@ func (c *Client) download(u string) ([]byte, error) {
 
 type listing struct {
 	Data []struct {
-		ID   int    `json:"id"`
-		URL  string `json:"url"`
-		Mime string `json:"mime"`
+		ID    int    `json:"id"`
+		Name  string `json:"name"`
+		URL   string `json:"url"`
+		Thumb string `json:"thumb"`
+		Mime  string `json:"mime"`
 	} `json:"data"`
 }
 
-// Find searches for name and downloads the best match's portrait, hero, logo and icon.
-// Kinds with no artwork are skipped.
-func (c *Client) Find(name string) ([]Image, error) {
+// Game is a SteamGridDB search match.
+type Game struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// Candidate is one image SteamGridDB offers for a kind of artwork.
+type Candidate struct {
+	URL   string `json:"url"`
+	Thumb string `json:"thumb"`
+	Mime  string `json:"mime"`
+}
+
+// Choices lists the artwork SteamGridDB has for one game, best first.
+type Choices struct {
+	Games []Game              `json:"games"`
+	Game  int                 `json:"game"`
+	Kinds map[int][]Candidate `json:"kinds"`
+}
+
+var kindQueries = []struct {
+	kind  int
+	path  string
+	query string
+}{
+	{Portrait, "grids", "?dimensions=600x900&types=static"},
+	{Wide, "grids", "?dimensions=920x430,460x215&types=static"},
+	{Hero, "heroes", "?types=static"},
+	{Logo, "logos", "?types=static"},
+	{Icon, "icons", "?types=static"},
+}
+
+var mimeExt = map[string]string{"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+
+// maxChoices caps how many images per kind are offered.
+const maxChoices = 24
+
+// Options searches for name and lists the artwork of game (or of the best match when game is 0).
+func (c *Client) Options(name string, game int) (Choices, error) {
 	if !c.HasKey() {
-		return nil, errors.New("no SteamGridDB API key set")
+		return Choices{}, errors.New("no SteamGridDB API key set")
 	}
 	var found listing
 	if err := c.get(c.Base+"/search/autocomplete/"+url.PathEscape(name), true, &found); err != nil {
+		return Choices{}, err
+	}
+	ch := Choices{Kinds: map[int][]Candidate{}}
+	for _, g := range found.Data {
+		ch.Games = append(ch.Games, Game{ID: g.ID, Name: g.Name})
+	}
+	if game == 0 {
+		if len(found.Data) == 0 {
+			return Choices{}, fmt.Errorf("no SteamGridDB match for %q", name)
+		}
+		game = found.Data[0].ID
+	}
+	ch.Game = game
+	for _, k := range kindQueries {
+		var l listing
+		if err := c.get(fmt.Sprintf("%s/%s/game/%d%s", c.Base, k.path, game, k.query), true, &l); err != nil {
+			if strings.Contains(err.Error(), "API key") {
+				return Choices{}, err
+			}
+			continue
+		}
+		for _, d := range l.Data {
+			if mimeExt[d.Mime] == "" || !c.allowed(d.URL) {
+				continue
+			}
+			thumb := d.Thumb
+			if !c.allowed(thumb) {
+				thumb = d.URL
+			}
+			ch.Kinds[k.kind] = append(ch.Kinds[k.kind], Candidate{URL: d.URL, Thumb: thumb, Mime: d.Mime})
+			if len(ch.Kinds[k.kind]) == maxChoices {
+				break
+			}
+		}
+	}
+	return ch, nil
+}
+
+// allowed limits downloads to SteamGridDB (and its CDN), never arbitrary URLs.
+func (c *Client) allowed(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") {
+		return false
+	}
+	host := u.Hostname()
+	if b, err := url.Parse(c.Base); err == nil && host == b.Hostname() {
+		return true
+	}
+	return u.Scheme == "https" && (host == "steamgriddb.com" || strings.HasSuffix(host, ".steamgriddb.com"))
+}
+
+// Fetch downloads one chosen image.
+func (c *Client) Fetch(kind int, raw string) (Image, error) {
+	if kind < Portrait || kind > Icon {
+		return Image{}, errors.New("unknown artwork kind")
+	}
+	if !c.allowed(raw) {
+		return Image{}, errors.New("artwork must come from SteamGridDB")
+	}
+	ext := ""
+	switch strings.ToLower(path.Ext(strings.SplitN(raw, "?", 2)[0])) {
+	case ".png":
+		ext = "png"
+	case ".jpg", ".jpeg":
+		ext = "jpg"
+	case ".webp":
+		ext = "webp"
+	default:
+		return Image{}, errors.New("unsupported image type")
+	}
+	b, err := c.download(raw)
+	if err != nil {
+		return Image{}, err
+	}
+	return Image{Kind: kind, Ext: ext, Data: b}, nil
+}
+
+// Find downloads the top choice of each kind for the best match of name.
+// Kinds with no artwork are skipped.
+func (c *Client) Find(name string) ([]Image, error) {
+	ch, err := c.Options(name, 0)
+	if err != nil {
 		return nil, err
 	}
-	if len(found.Data) == 0 {
-		return nil, fmt.Errorf("no SteamGridDB match for %q", name)
-	}
-	game := found.Data[0].ID
-	kinds := []struct {
-		kind  int
-		path  string
-		query string
-	}{
-		{Portrait, "grids", "?dimensions=600x900&types=static"},
-		{Wide, "grids", "?dimensions=920x430,460x215&types=static"},
-		{Hero, "heroes", "?types=static"},
-		{Logo, "logos", "?types=static"},
-		{Icon, "icons", "?types=static"},
-	}
 	var out []Image
-	for _, k := range kinds {
-		var l listing
-		if err := c.get(fmt.Sprintf("%s/%s/game/%d%s", c.Base, k.path, game, k.query), true, &l); err != nil || len(l.Data) == 0 {
-			continue
+	for _, k := range kindQueries {
+		for _, cand := range ch.Kinds[k.kind] {
+			b, err := c.download(cand.URL)
+			if err != nil {
+				continue
+			}
+			out = append(out, Image{Kind: k.kind, Ext: mimeExt[cand.Mime], Data: b})
+			break
 		}
-		ext := map[string]string{"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}[l.Data[0].Mime]
-		if ext == "" {
-			continue
-		}
-		b, err := c.download(l.Data[0].URL)
-		if err != nil {
-			continue
-		}
-		out = append(out, Image{Kind: k.kind, Ext: ext, Data: b})
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("SteamGridDB has no artwork for %q", name)
