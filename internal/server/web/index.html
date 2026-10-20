@@ -18,6 +18,8 @@
   small { color: var(--dim); }
   label { display: block; margin: .75rem 0 .25rem; color: var(--dim); font-size: .85rem; }
   .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
+  .pick { display: flex; gap: .5rem; }
+  .pick button { margin: 0; white-space: nowrap; }
   input, select { width: 100%; padding: .5rem .6rem; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: .5rem; font: inherit; }
   input:focus, select:focus { outline: none; border-color: var(--accent); }
   input[type=checkbox] { width: auto; margin-right: .5rem; accent-color: var(--accent); }
@@ -80,14 +82,20 @@
   <form id="appform">
     <div class="row">
       <label>Name <input name="name" required maxlength="80"></label>
-      <label>Program <input name="exe" required placeholder="C:\Program Files\App\app.exe or /usr/bin/app"></label>
+      <label>Program <span class="pick"><input name="exe" required placeholder="C:\Program Files\App\app.exe or /usr/bin/app"><button type="button" id="browse">Browse…</button></span></label>
     </div>
     <div class="row">
       <label>Arguments <input name="args"></label>
       <label>Start in (optional) <input name="startDir"></label>
     </div>
     <button type="submit">Add to Steam</button>
+    <button type="button" id="importbtn">Import from Steam</button>
   </form>
+  <div id="import" hidden>
+    <h2 style="margin-top:1.5rem">Already in Steam</h2>
+    <p><small>Non-Steam games already in this PC's Steam library. Importing lists them here without changing Steam.</small></p>
+    <div id="shortcuts"></div>
+  </div>
 </section>
 <section class="panel" id="tab-devices">
   <h2>Paired devices</h2>
@@ -298,7 +306,9 @@ function renderApps(r) {
     card.append(a.inSteam
       ? el("button", "Remove from Steam", { onclick: () => act("DELETE", "/api/apps/" + a.id + "/steam") })
       : el("button", "Add to Steam", { className: "primary", onclick: () => act("POST", "/api/apps/" + a.id + "/steam") }),
-      el("button", "Delete", { className: "danger", onclick: () => { if (confirm("Delete " + a.name + "?")) act("DELETE", "/api/apps/" + a.id); } }));
+      el("button", "Delete", { className: "danger", onclick: () => {
+        if (confirm("Delete " + a.name + "?" + (a.inSteam ? " This also removes it from Steam." : ""))) act("DELETE", "/api/apps/" + a.id);
+      } }));
     return card;
   });
   $("#apps").replaceChildren(...(cards.length ? cards : [el("small", "No apps yet.")]));
@@ -311,6 +321,48 @@ $("#appform").onsubmit = async (e) => {
     renderApps(await api("POST", "/api/apps", { name: f.name.value, exe: f.exe.value, args: f.args.value, startDir: f.startDir.value, addToSteam: true }));
     f.reset(); msg("Added");
   } catch (err) { msg(err.message); refreshApps(); }
+};
+$("#browse").onclick = async () => {
+  const f = $("#appform");
+  msg("Choose the program in the window that opened on this PC…");
+  try {
+    const { path } = await api("POST", "/api/apps/browse", { start: f.exe.value });
+    msg("");
+    if (!path) return;
+    f.exe.value = path;
+    if (!f.name.value) f.name.value = path.split(/[\\/]/).pop().replace(/\.(exe|bat|cmd|lnk|sh|AppImage)$/i, "").slice(0, 80);
+  } catch (err) { msg(err.message); }
+};
+async function refreshShortcuts() {
+  const box = $("#shortcuts");
+  try {
+    const { shortcuts } = await api("GET", "/api/steam/shortcuts");
+    const add = async (body) => {
+      try {
+        const r = await api("POST", "/api/apps/import", body);
+        renderApps(r);
+        msg("Imported " + r.imported + (r.skipped.length ? ". Skipped: " + r.skipped.join("; ") : ""));
+      } catch (err) { msg(err.message); }
+      refreshShortcuts();
+    };
+    const todo = shortcuts.filter((s) => !s.imported);
+    const cards = shortcuts.map((s) => {
+      const card = el("div", "", { className: "card" });
+      card.append(el("span", s.name, { className: "name" }));
+      card.append(s.imported ? el("span", "Imported", { className: "tag custom" })
+        : el("button", "Import", { onclick: () => add({ appIds: [s.appId] }) }));
+      card.append(el("p", s.exe + (s.args ? " " + s.args : "")));
+      card.lastChild.style.color = "var(--dim)";
+      return card;
+    });
+    if (todo.length > 1) cards.unshift(el("button", "Import all (" + todo.length + ")", { className: "primary", onclick: () => add({ all: true }) }));
+    box.replaceChildren(...(cards.length ? cards : [el("small", "No non-Steam games found in Steam.")]));
+  } catch (err) { box.replaceChildren(el("small", err.message)); }
+}
+$("#importbtn").onclick = () => {
+  const box = $("#import");
+  box.hidden = !box.hidden;
+  if (!box.hidden) refreshShortcuts();
 };
 load();
 refreshClients();

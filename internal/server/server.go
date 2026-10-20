@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/subtle"
 	"embed"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/config"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/display"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/pairing"
+	"github.com/justjoseorg/SpoutRemotePlayHost/internal/picker"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/power"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/session"
 	"github.com/justjoseorg/SpoutRemotePlayHost/internal/steamlib"
@@ -38,6 +40,9 @@ type Server struct {
 	handler http.Handler
 	// shutdown powers the PC off; tests replace it.
 	shutdown func() error
+	// pick opens a file dialog on this PC and shortcuts lists Steam's existing shortcuts; tests replace them.
+	pick      func(ctx context.Context, start string) (string, error)
+	shortcuts func() ([]steamlib.Existing, error)
 }
 
 // Sessions returns the controller that ties Remote Play sessions to the virtual monitor.
@@ -53,7 +58,8 @@ func New(cfg *config.Store, disp display.Manager, version, token string, pair *p
 
 // NewServer is New but also exposes the session controller.
 func NewServer(cfg *config.Store, disp display.Manager, version, token string, pair *pairing.Manager) *Server {
-	s := &Server{cfg: cfg, disp: disp, version: version, pair: pair, sess: session.New(cfg, disp), shutdown: power.Shutdown}
+	s := &Server{cfg: cfg, disp: disp, version: version, pair: pair, sess: session.New(cfg, disp), shutdown: power.Shutdown,
+		pick: picker.OpenFile, shortcuts: steamlib.LocalShortcuts}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.status)
 	mux.HandleFunc("GET /api/config", s.getConfig)
@@ -80,6 +86,9 @@ func NewServer(cfg *config.Store, disp display.Manager, version, token string, p
 	mux.HandleFunc("GET /api/apps", s.listApps)
 	// Adding or removing apps runs programs on this PC, so only the local UI may do it.
 	mux.HandleFunc("POST /api/apps", localOnly(s.addApp))
+	mux.HandleFunc("POST /api/apps/browse", localOnly(s.browseApp))
+	mux.HandleFunc("POST /api/apps/import", localOnly(s.importApps))
+	mux.HandleFunc("GET /api/steam/shortcuts", localOnly(s.steamShortcuts))
 	mux.HandleFunc("DELETE /api/apps/{id}", localOnly(s.deleteApp))
 	mux.HandleFunc("POST /api/apps/{id}/steam", localOnly(s.steamAdd))
 	mux.HandleFunc("DELETE /api/apps/{id}/steam", localOnly(s.steamRemove))
