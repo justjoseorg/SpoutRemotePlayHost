@@ -177,6 +177,16 @@ The **Apps** tab adds programs to this PC's Steam library as non-Steam shortcuts
 - **Browse…** opens this PC's own file dialog to pick the program (a web page can't see real file paths). On Windows it's tested opening in the right folder, cancelling, and refusing a second dialog while one is open. On Linux it uses `kdialog` or `zenity` and is not tested yet.
 - **Import from Steam** lists the non-Steam games already in Steam (read from `userdata/<you>/config/shortcuts.vdf`, so Steam doesn't need to be running) and adds them to the list, linked to their existing Steam entry. Nothing in Steam changes. Tested on Windows with 8 Xbox games. Deleting an imported app also removes it from Steam.
 
+### 🔄 Updates
+
+The host checks GitHub for a new release a minute after it starts and every 6 hours. When one is out you get a desktop notification, and the web UI shows **Install update**. **Monitor config → Updates** shows the status, has **Check now**, and an **Install updates automatically** option that installs new releases on its own, but never while a device is streaming.
+
+- Downloads come only from this repository's releases and must match the SHA-256 digest GitHub publishes for them.
+- **Windows:** runs the new Setup silently with the tasks you picked before (autostart, LAN, Sign-In). If the host isn't running as administrator, Windows asks for permission first. Setup restarts the host when it's done.
+- **Linux:** replaces `~/.local/bin/spout-host` with the one from the release and restarts in place. Only the binary is updated; re-run `install.sh` from a new release if its notes mention driver or service changes.
+- Builds you compile yourself (version `dev`) don't update.
+- Tested on Windows: a build reporting 0.7.0 updated itself to 0.7.8 from the real release (download, digest check, silent Setup, previous tasks kept, host restarted by the logon task). Not tested yet: the Linux path, automatic installs, and the Windows permission prompt.
+
 ## 🔎 How it works
 
 Two independent signals tell the host a stream started, so it doesn't rely on one fragile hook:
