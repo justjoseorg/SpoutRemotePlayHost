@@ -3,6 +3,7 @@ package steamlib
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"hash/crc32"
 	"os"
 	"path/filepath"
@@ -85,5 +86,24 @@ func TestShortcutsFileUsesMostRecentUser(t *testing.T) {
 	p, err := shortcutsFile([]string{filepath.Join(root, "missing"), root})
 	if err != nil || p != filepath.Join(root, "userdata", "222", "config", "shortcuts.vdf") {
 		t.Fatalf("got %q %v", p, err)
+	}
+	ip, err := iconPath([]string{root}, 42, "png")
+	if err != nil || ip != filepath.Join(root, "userdata", "222", "config", "grid", "42_icon.png") {
+		t.Fatalf("icon path %q %v", ip, err)
+	}
+}
+
+func TestExceptionString(t *testing.T) {
+	var e exceptionDetails
+	if err := json.Unmarshal([]byte(`{"text":"Uncaught (in promise)","exception":{"description":"Object","preview":{"properties":[{"name":"result","value":"2"},{"name":"message","value":""}]}}}`), &e); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.String(); got != "request failed (result 2)" {
+		t.Fatalf("got %q", got)
+	}
+	e = exceptionDetails{Text: "Uncaught"}
+	e.Exception.Description = "TypeError: x is not a function"
+	if got := e.String(); got != "TypeError: x is not a function" {
+		t.Fatalf("got %q", got)
 	}
 }
