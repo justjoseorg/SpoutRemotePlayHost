@@ -46,7 +46,15 @@
   .tag.custom { background: #4c9aff22; color: var(--accent); }
   .dev button { margin: .75rem .5rem 0 0; }
   #pairing { border-color: var(--accent); }
-  #msg { min-height: 1.5rem; color: var(--dim); text-align: center; }
+  #msg { position: sticky; bottom: 0; min-height: 1.5rem; padding: .4rem; color: var(--text); text-align: center; background: var(--bg); }
+  #msg:empty { padding: 0; }
+  .artpick { flex-basis: 100%; }
+  .artpick h3 { font-size: .8rem; color: var(--dim); margin: .75rem 0 .25rem; font-weight: 600; }
+  .thumbs { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .25rem; }
+  .thumbs img { height: 6rem; border: 2px solid transparent; border-radius: .3rem; cursor: pointer; background: #ffffff0d; flex: none; }
+  .thumbs img.icon { height: 3rem; }
+  .thumbs img:hover { border-color: var(--line); }
+  .thumbs img.on { border-color: var(--accent); }
 </style>
 <main>
 <header><h1>Spout Remote Play Host</h1><span><span class="pill" id="pill">…</span> <small id="ver"></small></span></header>
@@ -285,14 +293,18 @@ function renderApps(r) {
     note.replaceChildren(card);
   }
   const art = $("#artnote");
-  if (r.artwork) art.replaceChildren(el("small", "Artwork from SteamGridDB is on."));
-  else {
+  const keyForm = () => {
     const key = el("input", "", { placeholder: "SteamGridDB API key", type: "password" });
     const save = el("button", "Save key", { onclick: async () => {
-      try { renderApps(await api("PUT", "/api/steam/artwork-key", { key: key.value })); msg("Saved"); }
+      try { renderApps(await api("PUT", "/api/steam/artwork-key", { key: key.value })); msg("Key saved"); }
       catch (err) { msg(err.message); } } });
-    art.replaceChildren(el("small", "Optional: a free SteamGridDB API key (steamgriddb.com/profile/preferences/api) fetches icons and covers."), key, save);
-  }
+    return [el("small", "A free SteamGridDB API key (steamgriddb.com/profile/preferences/api) fetches icons and covers. Paste just the key."), key, save];
+  };
+  if (r.artwork) {
+    const change = el("button", "Change key", { onclick: () => art.replaceChildren(...keyForm()) });
+    change.style.margin = "0 0 0 .5rem"; change.style.padding = ".2rem .6rem";
+    art.replaceChildren(el("small", "Artwork from SteamGridDB is on."), change);
+  } else art.replaceChildren(...keyForm());
   const cards = r.apps.map((a) => {
     const card = el("div", "", { className: "card" });
     card.append(el("span", a.name, { className: "name" }),
@@ -302,7 +314,13 @@ function renderApps(r) {
     const act = async (method, path) => {
       try { renderApps(await api(method, path)); } catch (err) { msg(err.message); refreshApps(); }
     };
-    if (a.inSteam && r.artwork) card.append(el("button", "Refresh artwork", { onclick: () => act("POST", "/api/apps/" + a.id + "/artwork") }));
+    if (a.inSteam && r.artwork) card.append(
+      el("button", "Auto artwork", { onclick: async () => {
+        msg("Fetching artwork for " + a.name + "…");
+        try { renderApps(await api("POST", "/api/apps/" + a.id + "/artwork")); msg("Artwork updated for " + a.name + ". Steam may need a moment to show it."); }
+        catch (err) { msg("Artwork: " + err.message); }
+      } }),
+      el("button", "Choose artwork", { onclick: () => chooseArt(a, card, 0) }));
     card.append(a.inSteam
       ? el("button", "Remove from Steam", { onclick: () => act("DELETE", "/api/apps/" + a.id + "/steam") })
       : el("button", "Add to Steam", { className: "primary", onclick: () => act("POST", "/api/apps/" + a.id + "/steam") }),
@@ -314,6 +332,42 @@ function renderApps(r) {
   $("#apps").replaceChildren(...(cards.length ? cards : [el("small", "No apps yet.")]));
 }
 async function refreshApps() { try { renderApps(await api("GET", "/api/apps")); } catch (err) { msg(err.message); } }
+const artKinds = [[0, "Cover"], [3, "Wide cover"], [1, "Hero (background)"], [2, "Logo"], [4, "Icon"]];
+async function chooseArt(a, card, game) {
+  let box = card.querySelector(".artpick");
+  if (box && !game) { box.remove(); return; }
+  if (!box) { box = el("div", "", { className: "artpick" }); card.append(box); }
+  box.replaceChildren(el("small", "Loading SteamGridDB artwork…"));
+  let ch;
+  try { ch = await api("GET", "/api/apps/" + a.id + "/artwork/options" + (game ? "?game=" + game : "")); }
+  catch (err) { box.replaceChildren(el("small", "Artwork: " + err.message)); return; }
+  const parts = [];
+  if (ch.games && ch.games.length > 1) {
+    const sel = el("select", "", { onchange: () => chooseArt(a, card, +sel.value) });
+    for (const g of ch.games) sel.append(el("option", g.name, { value: g.id, selected: g.id === ch.game }));
+    parts.push(el("h3", "Game on SteamGridDB"), sel);
+  }
+  for (const [kind, label] of artKinds) {
+    const list = (ch.kinds && ch.kinds[kind]) || [];
+    parts.push(el("h3", label + (list.length ? "" : ": none found")));
+    if (!list.length) continue;
+    const row = el("div", "", { className: "thumbs" });
+    for (const c of list) {
+      const img = el("img", "", { src: c.thumb, loading: "lazy", title: "Use this " + label.toLowerCase(), className: kind === 4 ? "icon" : "" });
+      img.onclick = async () => {
+        msg("Setting " + label.toLowerCase() + "…");
+        try {
+          await api("PUT", "/api/apps/" + a.id + "/artwork", { kind, url: c.url });
+          for (const x of row.children) x.classList.toggle("on", x === img);
+          msg(label + " set for " + a.name + ".");
+        } catch (err) { msg("Artwork: " + err.message); }
+      };
+      row.append(img);
+    }
+    parts.push(row);
+  }
+  box.replaceChildren(...parts);
+}
 $("#appform").onsubmit = async (e) => {
   e.preventDefault();
   const f = e.target;

@@ -93,6 +93,8 @@ func NewServer(cfg *config.Store, disp display.Manager, version, token string, p
 	mux.HandleFunc("POST /api/apps/{id}/steam", localOnly(s.steamAdd))
 	mux.HandleFunc("DELETE /api/apps/{id}/steam", localOnly(s.steamRemove))
 	mux.HandleFunc("POST /api/apps/{id}/artwork", localOnly(s.steamArtwork))
+	mux.HandleFunc("GET /api/apps/{id}/artwork/options", localOnly(s.artworkOptions))
+	mux.HandleFunc("PUT /api/apps/{id}/artwork", localOnly(s.setArtwork))
 	mux.HandleFunc("PUT /api/steam/artwork-key", localOnly(s.setArtworkKey))
 	mux.HandleFunc("POST /api/steam/enable-debugging", localOnly(s.enableSteam))
 	sub, _ := fs.Sub(webFS, "web")
