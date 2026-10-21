@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -39,8 +40,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
-// hostInfo describes this PC for the client: its name and the MAC of the NIC that served the request,
-// so the client can add the PC to its Wake-on-LAN list without the user typing a MAC.
+// hostInfo reports the NIC that served the request, not a guessed default interface.
 func hostInfo(r *http.Request) map[string]string {
 	info := map[string]string{}
 	if name, err := os.Hostname(); err == nil {
@@ -51,17 +51,46 @@ func hostInfo(r *http.Request) map[string]string {
 	if !ok {
 		return info
 	}
-	ifaces, _ := net.Interfaces()
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		log.Printf("pair: cannot list host interfaces: %v", err)
+		return info
+	}
 	for _, ifc := range ifaces {
-		addrs, _ := ifc.Addrs()
-		for _, a := range addrs {
-			if ipn, ok := a.(*net.IPNet); ok && ipn.IP.Equal(tcp.IP) && len(ifc.HardwareAddr) == 6 {
-				info["mac"] = strings.ToUpper(ifc.HardwareAddr.String())
-				return info
+		addrs, err := ifc.Addrs()
+		if err != nil {
+			log.Printf("pair: cannot read addresses for %s: %v", ifc.Name, err)
+			continue
+		}
+		if nic := interfaceInfo(ifc, addrs, tcp.IP); nic != nil {
+			for key, value := range nic {
+				info[key] = value
 			}
+			return info
 		}
 	}
 	return info
+}
+
+func interfaceInfo(ifc net.Interface, addrs []net.Addr, localIP net.IP) map[string]string {
+	if len(ifc.HardwareAddr) != 6 {
+		return nil
+	}
+	for _, addr := range addrs {
+		ipn, ok := addr.(*net.IPNet)
+		if !ok || !ipn.IP.Equal(localIP) {
+			continue
+		}
+		info := map[string]string{"mac": strings.ToUpper(ifc.HardwareAddr.String())}
+		ones, bits := ipn.Mask.Size()
+		if ipn.IP.To4() != nil && bits == 32 && ones > 0 && ones < 31 &&
+			ifc.Flags&net.FlagBroadcast != 0 && ifc.Flags&net.FlagLoopback == 0 {
+			info["address"] = ipn.IP.To4().String()
+			info["subnetMask"] = net.IP(ipn.Mask).String()
+		}
+		return info
+	}
+	return nil
 }
 
 func (s *Server) pairRequest(w http.ResponseWriter, r *http.Request) {
